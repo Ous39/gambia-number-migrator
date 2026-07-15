@@ -5,7 +5,8 @@ dotenv.config();
 
 export const env = {
   nodeEnv: process.env.NODE_ENV || 'development',
-  port: Number(process.env.API_PORT || 8089),
+  //port: Number(process.env.API_PORT || 8089),
+  port: Number(process.env.PORT || process.env.API_PORT || 8089),
   databaseUrl: process.env.DATABASE_URL || 'postgres://gnm_user:gnm_password@localhost:5434/gambia_number_migrator',
   jwtSecret: process.env.JWT_SECRET || 'dev-only-change-me',
   paymentTestMode: process.env.PAYMENT_TEST_MODE === 'true',

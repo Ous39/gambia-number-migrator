@@ -1,0 +1,21 @@
+{
+  "name": "gambia-number-migrator",
+  "version": "2.3.0",
+  "private": true,
+  "description": "Privacy-first contact migration app for The Gambia 7-digit to 9-digit numbering transition.",
+  "packageManager": "pnpm@9.12.3",
+  "scripts": {
+    "dev": "pnpm -r --parallel dev",
+    "build": "pnpm --filter @gnm/shared build && pnpm -r --filter \"!@gnm/shared\" build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "lint": "pnpm -r lint",
+    "db:migrate": "pnpm --filter @gnm/api db:migrate",
+    "db:seed": "pnpm --filter @gnm/shared build && pnpm --filter @gnm/api db:seed"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "tsx": "^4.19.2",
+    "vitest": "^2.1.4"
+  }
+}

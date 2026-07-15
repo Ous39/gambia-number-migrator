@@ -1,0 +1,6 @@
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS otp_hash TEXT;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS otp_expires_at TIMESTAMPTZ;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS otp_attempts INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS paid_at TIMESTAMPTZ;
+
+CREATE INDEX IF NOT EXISTS idx_payments_reference_status ON payments(reference, status);

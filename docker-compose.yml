@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: gambia_number_migrator_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: gambia_number_migrator
+      POSTGRES_USER: gnm_user
+      POSTGRES_PASSWORD: gnm_password
+    ports:
+      - "5434:5432"
+    volumes:
+      - gnm_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gnm_user -d gambia_number_migrator"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+volumes:
+  gnm_pg_data:

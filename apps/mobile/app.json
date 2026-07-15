@@ -1,0 +1,64 @@
+{
+  "expo": {
+    "name": "Gambia Number Migrator",
+    "slug": "gambia-number-migrator",
+    "description": "Privacy-first contact number migration for The Gambia.",
+    "version": "2.3.0",
+    "icon": "./assets/icon.png",
+    "orientation": "portrait",
+    "scheme": "gnm",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.oceanbrown.gambianumbermigrator",
+      "infoPlist": {
+        "NSContactsUsageDescription": "Gambia Number Migrator scans contacts locally so you can preview and safely update Gambian numbers. Contacts are not uploaded."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#49225B"
+      },
+      "permissions": [
+        "READ_CONTACTS",
+        "WRITE_CONTACTS",
+        "POST_NOTIFICATIONS"
+      ],
+      "package": "com.oceanbrown.gambianumbermigrator"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#F5EBFA",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 180,
+          "dark": {
+            "backgroundColor": "#1B0B22",
+            "image": "./assets/splash-icon.png"
+          }
+        }
+      ],
+      "expo-contacts",
+      [
+        "expo-notifications",
+        {
+          "color": "#6E3482",
+          "defaultChannel": "default"
+        }
+      ]
+    ],
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "apiNote": "Use EXPO_PUBLIC_API_BASE_URL with your PC LAN IP when testing on a physical phone."
+    }
+  }
+}

@@ -13,7 +13,8 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.oceanbrown.gambianumbermigrator",
       "infoPlist": {
-        "NSContactsUsageDescription": "Gambia Number Migrator scans contacts locally so you can preview and safely update Gambian numbers. Contacts are not uploaded."
+        "NSContactsUsageDescription": "Gambia Number Migrator scans contacts locally so you can preview and safely update Gambian numbers. Contacts are not uploaded.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -24,7 +25,9 @@
       "permissions": [
         "READ_CONTACTS",
         "WRITE_CONTACTS",
-        "POST_NOTIFICATIONS"
+        "POST_NOTIFICATIONS",
+        "android.permission.READ_CONTACTS",
+        "android.permission.WRITE_CONTACTS"
       ],
       "package": "com.oceanbrown.gambianumbermigrator"
     },
@@ -58,7 +61,10 @@
       "router": {
         "origin": false
       },
-      "apiNote": "Use EXPO_PUBLIC_API_BASE_URL with your PC LAN IP when testing on a physical phone."
+      "apiNote": "Use EXPO_PUBLIC_API_BASE_URL with your PC LAN IP when testing on a physical phone.",
+      "eas": {
+        "projectId": "2f1a4344-3c29-466d-a773-56355f9d4994"
+      }
     }
   }
 }

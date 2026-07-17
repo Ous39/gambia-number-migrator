@@ -3,7 +3,7 @@ import { FlatList, ScrollView, Text, TouchableOpacity, View } from 'react-native
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Button } from '../src/components/Button';
-import { BackHeader, Card, EmptyState, FilterChip, FixedBottomTabs, FloatingActionBar, NoticeCard, OperatorBadge, Pill, SearchBox, useAppDialog } from '../src/components/UI';
+import { BackHeader, Card, EmptyState, FilterChip, FixedBottomTabs, FloatingActionBar, OperatorBadge, Pill, SearchBox, useAppDialog } from '../src/components/UI';
 import { AppIcon } from '../src/components/AppIcon';
 import { applyDuplicateAdd, applyReplace } from '../src/services/contactsService';
 import { getJson, keys } from '../src/services/storage';
@@ -139,7 +139,7 @@ export default function Preview() {
   const activeToneValue = getTone(colors, activeTone as Tone);
 
   const stickyHeader = (
-    <View style={{ backgroundColor: colors.bg, borderBottomWidth: 1, borderBottomColor: colors.line, paddingBottom: 12, shadowColor: colors.shadow, shadowOpacity: colors.isDark ? 0.26 : 0.08, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 7 }}>
+    <View style={{ backgroundColor: colors.bg, borderBottomWidth: 1, borderBottomColor: colors.line, paddingBottom: 10 }}>
       <View style={{ width: '100%', maxWidth: r.maxWidth as any, alignSelf: 'center', paddingHorizontal: r.horizontalPadding }}>
         <BackHeader
           title="Preview Changes"
@@ -190,23 +190,17 @@ export default function Preview() {
         data={filtered}
         keyExtractor={(item) => candidateKey(item)}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingTop: 14, paddingBottom: 230 + insets.bottom }}
+        contentContainerStyle={{ paddingTop: 8, paddingBottom: 230 + insets.bottom }}
         ListEmptyComponent={<View style={{ width: '100%', maxWidth: r.maxWidth as any, alignSelf: 'center', paddingHorizontal: r.horizontalPadding }}>{loading ? <Card><Text style={styles.body}>Loading scan results...</Text></Card> : !scan ? <EmptyState icon="scan" title="Scan required" text="Scan your contacts first to create a current preview." action={<Button title="Go to Dashboard" onPress={() => router.replace('/dashboard')} />} /> : <EmptyState icon="scan" title="No numbers in this view" text="Try another filter or search, or scan contacts again to refresh the results." action={<Button title="Clear Filters" onPress={() => { setQ(''); setFilter('All'); }} />} />}</View>}
-        ListHeaderComponent={all.length ? <View style={{ width: '100%', maxWidth: r.maxWidth as any, alignSelf: 'center', paddingHorizontal: r.horizontalPadding, marginBottom: 12 }}>
-          <View style={{ borderRadius: 28, overflow: 'hidden', backgroundColor: colors.brandTop, marginBottom: 14 }}>
-            <View style={{ position: 'absolute', right: -70, top: -70, width: 190, height: 190, borderRadius: 95, backgroundColor: colors.brandBubble }} />
-            <View style={{ padding: 16 }}>
-              <Text style={{ color: 'rgba(255,255,255,0.72)', fontSize: 12, fontWeight: '900', letterSpacing: 1.2 }}>CURRENT FILTER</Text>
-              <Text style={{ color: colors.white, fontSize: 25, lineHeight: 31, fontWeight: '900', marginTop: 4 }}>{filter === 'All' ? 'All operators' : filter}</Text>
-              <Text style={{ color: 'rgba(255,255,255,0.78)', marginTop: 4, fontWeight: '700' }}>Only visible selected numbers will be migrated.</Text>
-              <Text style={{ color: 'rgba(255,255,255,0.72)', fontSize: 12, fontWeight: '900', marginTop: 16 }}>HOW SHOULD NUMBERS BE SAVED?</Text>
-              <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-                <ModeButton title="Add new & keep old" active={mode === 'duplicate'} tone="primary" onPress={() => setMode('duplicate')} />
-                <ModeButton title={allowReplace ? 'Replace old number' : 'Replace unavailable'} active={mode === 'replace'} tone="warning" disabled={!allowReplace} onPress={() => setMode('replace')} />
-              </View>
+        ListHeaderComponent={all.length ? <View style={{ width: '100%', maxWidth: r.maxWidth as any, alignSelf: 'center', paddingHorizontal: r.horizontalPadding, marginBottom: 8 }}>
+          <Card style={{ padding: 12, marginBottom: 8 }}>
+            <Text style={{ color: colors.text, fontSize: 14, fontWeight: '900', marginBottom: 9 }}>Save selected numbers as</Text>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <ModeButton title="Add new · keep old" active={mode === 'duplicate'} tone="primary" onPress={() => setMode('duplicate')} />
+              <ModeButton title={allowReplace ? 'Replace old number' : 'Replace disabled'} active={mode === 'replace'} tone="warning" disabled={!allowReplace} onPress={() => setMode('replace')} />
             </View>
-          </View>
-          <NoticeCard title="Review before updating" text="Choose an operator, select the visible contacts, and keep the migration button available at the bottom." tone="blue" icon="shield" />
+            <Text style={[styles.small, { marginTop: 9 }]}>Tap a contact row to select it. No contact changes until you confirm.</Text>
+          </Card>
         </View> : null}
         renderItem={({ item }) => {
           const key = candidateKey(item);
@@ -216,12 +210,9 @@ export default function Preview() {
           const selectable = item.status === 'Ready';
           return (
             <View style={{ width: '100%', maxWidth: r.maxWidth as any, alignSelf: 'center', paddingHorizontal: r.horizontalPadding }}>
-              <TouchableOpacity activeOpacity={0.86} disabled={!selectable || busy} onPress={() => setSelected((current) => ({ ...current, [key]: !current[key] }))} style={[styles.card, { marginBottom: 10, borderColor: active ? colors.primary : colors.line, padding: 14, opacity: selectable ? 1 : 0.72 }]}> 
+              <TouchableOpacity activeOpacity={0.76} disabled={!selectable || busy} onPress={() => setSelected((current) => ({ ...current, [key]: !current[key] }))} style={{ minHeight: 72, borderBottomWidth: 1, borderBottomColor: colors.line, paddingVertical: 10, paddingHorizontal: 4, opacity: selectable ? 1 : 0.6, backgroundColor: active ? colors.primarySoft : 'transparent' }}> 
                 <View style={[styles.row, { gap: 12 }]}> 
-                  <View style={{ width: 38, height: 38, borderRadius: 13, backgroundColor: active ? colors.primary : colors.surface2, borderColor: active ? colors.primary : colors.line, borderWidth: 1, alignItems: 'center', justifyContent: 'center' }}>
-                    {active ? <AppIcon name="check" color={colors.white} size={18} /> : <AppIcon name={selectable ? 'phone' : 'warning'} color={selectable ? colors.softText : colors.warning} size={16} />}
-                  </View>
-                  <View style={{ width: 44, height: 44, borderRadius: 18, backgroundColor: t.bg, borderColor: t.border, borderWidth: 1, alignItems: 'center', justifyContent: 'center' }}>
+                  <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: t.bg, alignItems: 'center', justifyContent: 'center' }}>
                     <Text style={{ color: t.fg, fontWeight: '900', fontSize: 17 }}>{String(item.contactName || '?').trim()[0]?.toUpperCase() || '?'}</Text>
                   </View>
                   <View style={{ flex: 1, minWidth: 0 }}>
@@ -229,11 +220,14 @@ export default function Preview() {
                       <Text numberOfLines={1} style={{ color: colors.text, fontWeight: '900', fontSize: 16, flex: 1 }}>{item.contactName || 'Unnamed contact'}</Text>
                       {item.status === 'Ready' ? <OperatorBadge operator={item.operatorName} /> : <Pill text={item.status || 'Review'} tone={statusTone(item.status)} />}
                     </View>
-                    <View style={[styles.row, { gap: 8, marginTop: 7 }]}> 
-                      <Text numberOfLines={1} style={{ color: colors.muted, fontWeight: '800', flexShrink: 1 }}>{item.originalNumber}</Text>
+                    <View style={[styles.row, { gap: 7, marginTop: 5 }]}> 
+                      <Text numberOfLines={1} style={{ color: colors.muted, fontWeight: '700', flexShrink: 1 }}>{item.originalNumber}</Text>
                       <AppIcon name="right" color={colors.primary} size={15} />
-                      <Text numberOfLines={1} style={{ color: t.fg, fontWeight: '900', flexShrink: 1 }}>{item.migratedNumber || 'Manual review'}</Text>
+                      <Text numberOfLines={1} style={{ color: t.fg, fontWeight: '800', flexShrink: 1 }}>{item.migratedNumber || 'Manual review'}</Text>
                     </View>
+                  </View>
+                  <View style={{ width: 26, height: 26, borderRadius: 13, borderWidth: 2, borderColor: active ? colors.primary : colors.line, backgroundColor: active ? colors.primary : colors.card, alignItems: 'center', justifyContent: 'center' }}>
+                    {active ? <AppIcon name="check" color={colors.white} size={15} /> : null}
                   </View>
                 </View>
               </TouchableOpacity>
@@ -252,8 +246,8 @@ function ModeButton({ title, active, tone, disabled = false, onPress }: { title:
   const { colors } = useAppTheme();
   const t = getTone(colors, tone);
   return (
-    <TouchableOpacity activeOpacity={0.84} disabled={disabled} onPress={onPress} style={{ flex: 1, minHeight: 44, paddingHorizontal: 10, paddingVertical: 10, borderRadius: radius.lg, borderWidth: 1, borderColor: active ? colors.white : 'rgba(255,255,255,0.26)', backgroundColor: active ? colors.white : 'rgba(255,255,255,0.12)', opacity: disabled ? 0.5 : 1, alignItems: 'center', justifyContent: 'center' }}>
-      <Text numberOfLines={2} style={{ color: active ? t.fg : colors.white, fontWeight: '900', fontSize: 12, textAlign: 'center' }}>{title}</Text>
+    <TouchableOpacity activeOpacity={0.84} disabled={disabled} onPress={onPress} style={{ flex: 1, minHeight: 44, paddingHorizontal: 10, paddingVertical: 10, borderRadius: radius.md, borderWidth: 1, borderColor: active ? t.fg : colors.line, backgroundColor: active ? t.bg : colors.surface2, opacity: disabled ? 0.45 : 1, alignItems: 'center', justifyContent: 'center' }}>
+      <Text numberOfLines={2} style={{ color: active ? t.fg : colors.muted, fontWeight: '900', fontSize: 12, textAlign: 'center' }}>{title}</Text>
     </TouchableOpacity>
   );
 }

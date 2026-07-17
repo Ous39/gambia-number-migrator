@@ -110,6 +110,8 @@ export interface MigrationCandidate {
   updateMode: UpdateMode;
   status: CandidateStatus;
   reason: string;
+  /** Local-only snapshot used to create a safe backup without rereading every contact. */
+  beforePhoneNumbers?: ContactPhoneLike[];
 }
 
 export interface CleanupCandidate {
@@ -123,4 +125,6 @@ export interface CleanupCandidate {
   confidence: DetectionResult['confidence'];
   status: 'Safe' | 'Manual Review' | 'Unsafe';
   reason: string;
+  /** Local-only snapshot used to create a safe backup without rereading every contact. */
+  beforePhoneNumbers?: ContactPhoneLike[];
 }

@@ -22,7 +22,8 @@ export function generateMigrationCandidates(contacts: ContactLike[], payload: Pu
           matchConfidence: detection.confidence,
           updateMode,
           status: 'Manual Review',
-          reason: detection.reason
+          reason: detection.reason,
+          beforePhoneNumbers: phoneNumbers.map((value) => ({ id: value.id, label: value.label, number: value.number }))
         });
         return;
       }
@@ -42,7 +43,8 @@ export function generateMigrationCandidates(contacts: ContactLike[], payload: Pu
         matchedRuleType: detection.matchedRuleType,
         updateMode,
         status: hasMatchingNew ? 'Duplicate Pair Found' : 'Ready',
-        reason: hasMatchingNew ? 'Matching new number already exists in this contact.' : detection.reason
+        reason: hasMatchingNew ? 'Matching new number already exists in this contact.' : detection.reason,
+        beforePhoneNumbers: phoneNumbers.map((value) => ({ id: value.id, label: value.label, number: value.number }))
       });
     });
   }
@@ -77,7 +79,8 @@ export function findCleanupCandidates(contacts: ContactLike[], payload: Publishe
           matchedRuleId: detection.matchedRuleId,
           confidence: detection.confidence,
           status: 'Safe' as const,
-          reason: 'Verified old/new duplicate pair. Safe to remove old number after user confirmation.'
+          reason: 'Verified old/new duplicate pair. Safe to remove old number after user confirmation.',
+          beforePhoneNumbers: (contact.phoneNumbers || []).map((value) => ({ id: value.id, label: value.label, number: value.number }))
         });
       }
     }

@@ -1,6 +1,6 @@
 {
   "name": "@gnm/shared",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "main": "dist/index.js",
   "react-native": "src/index.ts",
   "types": "dist/index.d.ts",

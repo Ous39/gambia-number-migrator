@@ -54,3 +54,19 @@ describe('migration candidates and cleanup', () => {
     expect(generateMigrationCandidates(multiple, payload, 'duplicate')[0].status).toBe('Ready');
   });
 });
+
+describe('large phonebook performance', () => {
+  it('processes 100,000 contacts without losing or duplicating candidates', () => {
+    const contacts = Array.from({ length: 100_000 }, (_, index) => ({
+      id: `contact-${index}`,
+      name: `Contact ${index}`,
+      phoneNumbers: [{ number: `3${String(index).padStart(6, '0')}` }],
+    }));
+    const started = performance.now();
+    const candidates = generateMigrationCandidates(contacts, payload, 'duplicate');
+    const elapsedMs = performance.now() - started;
+    expect(candidates).toHaveLength(100_000);
+    expect(new Set(candidates.map((candidate) => candidate.contactId)).size).toBe(100_000);
+    expect(elapsedMs).toBeLessThan(15_000);
+  }, 20_000);
+});

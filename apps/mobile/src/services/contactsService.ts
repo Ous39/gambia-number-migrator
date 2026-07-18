@@ -241,10 +241,13 @@ export async function createFullContactsBackup(onProgress?: (progress: ScanProgr
 async function loadMigrationJob(operation: string, selected: MigrationCandidate[]) {
   const existing = await getJson<any>(keys.migrationJob, null).catch(() => null);
   const selectedKeys = selected.map(migrationKey);
-  const sameSelection = existing?.operation === operation && selectedKeys.every((key) => existing.selectedKeys?.includes(key));
+  const existingKeys = Array.isArray(existing?.selectedKeys) ? existing.selectedKeys : [];
+  const sameSelection = existing?.operation === operation
+    && existingKeys.length === selectedKeys.length
+    && selectedKeys.every((key) => existingKeys.includes(key));
   if (existing?.status === 'running' && !sameSelection) throw new Error('Another migration is unfinished. Re-select the same contacts to resume it, or restore its backup before starting a different migration.');
   if (sameSelection) return existing;
-  const job = { id: `JOB-${Date.now()}`, operation, status: 'running', selectedKeys, completedKeys: [], succeeded: 0, skipped: 0, failed: 0, createdAt: new Date().toISOString() };
+  const job = { id: `JOB-${Date.now()}`, operation, status: 'running', selectedKeys, completedKeys: [], successKeys: [], succeeded: 0, skipped: 0, failed: 0, createdAt: new Date().toISOString() };
   await setJson(keys.migrationJob, job);
   return job;
 }
@@ -257,9 +260,12 @@ async function checkpointJob(job: any, force = false) {
 }
 
 function markJobComplete(job: any, completed: Set<string>, itemKey: string, succeeded: number, skipped: number, failed: number) {
+  const wasSuccessful = succeeded > Number(job.succeeded || 0);
   completed.add(itemKey);
   if (!Array.isArray(job.completedKeys)) job.completedKeys = [];
   job.completedKeys.push(itemKey);
+  if (!Array.isArray(job.successKeys)) job.successKeys = [];
+  if (wasSuccessful && !job.successKeys.includes(itemKey)) job.successKeys.push(itemKey);
   job.succeeded = succeeded;
   job.skipped = skipped;
   job.failed = failed;
@@ -285,7 +291,7 @@ export async function applyDuplicateAdd(selected: MigrationCandidate[], onProgre
   let added = Number(job.succeeded || 0);
   let skipped = Number(job.skipped || 0);
   let failed = Number(job.failed || 0);
-  const successKeys = new Set<string>();
+  const successKeys = new Set<string>(job.successKeys || []);
   const completed = new Set<string>(job.completedKeys || []);
 
   for (const item of selected) {
@@ -343,7 +349,7 @@ export async function applyReplace(selected: MigrationCandidate[], onProgress?: 
   let replaced = Number(job.succeeded || 0);
   let skipped = Number(job.skipped || 0);
   let failed = Number(job.failed || 0);
-  const successKeys = new Set<string>();
+  const successKeys = new Set<string>(job.successKeys || []);
   const completed = new Set<string>(job.completedKeys || []);
 
   for (const item of selected) {

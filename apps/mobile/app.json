@@ -3,7 +3,7 @@
     "name": "Gambia Number Migrator",
     "slug": "gambia-number-migrator",
     "description": "Privacy-first contact number migration for The Gambia.",
-    "version": "2.4.0",
+    "version": "2.5.0",
     "icon": "./assets/icon.png",
     "orientation": "portrait",
     "scheme": "gnm",

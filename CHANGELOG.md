@@ -293,3 +293,9 @@ See `docs/BAT_RUN_GUIDE.md`.
 - Added one-click disabling of active Sample, Demo and Fallback rules.
 - Added detailed detection for missing operators, disabled operators, prefix mismatches and equal-priority conflicts.
 - Kept non-production safety enforcement while making it clear how to resolve every failure.
+# 2.5.0 - 2026-07-18
+
+- Fixed resumable migration selection validation so a different or expanded selection cannot attach to an unfinished job.
+- Persisted successful item keys in migration checkpoints so Dashboard and Preview update correctly after pause, restart, and resume.
+- Added a generated 100,000-contact rule-engine regression/performance test.
+- Re-ran TypeScript, automated tests, API build, Admin build, Expo configuration validation, and Expo Doctor for the release.

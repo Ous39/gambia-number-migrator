@@ -126,7 +126,7 @@ export default function Settings() {
 
       <Section title="About">
         <Card style={{ gap: 14 }}>
-          <InfoRow label="Version" value="2.3.0 Production" icon="info" />
+          <InfoRow label="Version" value="2.8.0 Production" icon="info" />
           <InfoRow label="Rules" value="Admin published" icon="settings" />
           <Text style={[styles.small, { marginTop: 2 }]}>Proudly made for The Gambia · Powered by OceanBrown</Text>
           <Button title="Show Diagnostics" variant="secondary" tone="blue" icon="info" onPress={showDebug} />

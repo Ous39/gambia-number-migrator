@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { ActivityIndicator, Text, TouchableOpacity, View, type StyleProp, type ViewStyle } from 'react-native';
+import { ActivityIndicator, Pressable, Text, type StyleProp, type ViewStyle } from 'react-native';
 import { getTone, radius, type Tone, useAppTheme } from '../appTheme';
 import { AppIcon } from './AppIcon';
 
@@ -36,10 +36,12 @@ export function Button({
   const textColor = isPrimary ? colors.white : isDanger ? colors.danger : t.fg;
 
   return (
-    <TouchableOpacity
-      activeOpacity={0.84}
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      accessibilityState={{ disabled: disabled || loading, busy: loading }}
       onPress={loading || disabled ? undefined : onPress}
-      style={[
+      style={({ pressed }) => [
         {
           minHeight: 54,
           borderRadius: radius.md,
@@ -51,7 +53,7 @@ export function Button({
           flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'center',
-          opacity: disabled ? 0.48 : 1,
+          opacity: disabled ? 0.48 : pressed && !loading ? 0.86 : 1,
           shadowColor: colors.shadow,
           shadowOpacity: isPrimary ? (colors.isDark ? 0.24 : 0.16) : 0,
           shadowRadius: 14,
@@ -64,6 +66,6 @@ export function Button({
       {loading ? <ActivityIndicator color={textColor} style={{ marginRight: title ? 10 : 0 }} /> : icon && icon !== 'right' ? <AppIcon name={icon} color={textColor} size={17} style={{ marginRight: title ? 10 : 0 }} /> : null}
       {title ? <Text numberOfLines={2} maxFontSizeMultiplier={1.25} style={{ color: textColor, fontSize: 16, lineHeight: 22, fontWeight: '700', textAlign: 'center', flexShrink: 1 }}>{title}</Text> : children}
       {!loading && title && icon === 'right' ? <AppIcon name="right" color={textColor} size={20} style={{ marginLeft: 10 }} /> : null}
-    </TouchableOpacity>
+    </Pressable>
   );
 }

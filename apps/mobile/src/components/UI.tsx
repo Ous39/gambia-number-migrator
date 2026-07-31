@@ -18,6 +18,8 @@ export function Screen({ children, scroll = true, padded = true, stickyTop = tru
       {scroll ? (
         <ScrollView
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          automaticallyAdjustKeyboardInsets
           style={styles.screen}
           contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad }, contentStyle]}
           showsVerticalScrollIndicator={false}
@@ -145,13 +147,15 @@ export function IconButton({ icon, onPress, tone = 'muted', size = 44 }: { icon:
   const { colors } = useAppTheme();
   const t = getTone(colors, tone);
   return (
-    <TouchableOpacity
-      activeOpacity={0.84}
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={icon}
       onPress={onPress}
-      style={{ width: size, height: size, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', backgroundColor: t.bg, borderColor: t.border, borderWidth: 1 }}
+      hitSlop={6}
+      style={({ pressed }) => ({ width: size, height: size, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', backgroundColor: t.bg, borderColor: t.border, borderWidth: 1, opacity: pressed ? 0.78 : 1 })}
     >
       <AppIcon name={icon} color={t.fg} size={size > 40 ? 20 : 17} />
-    </TouchableOpacity>
+    </Pressable>
   );
 }
 export const CircleButton = IconButton;
@@ -173,7 +177,7 @@ export function Card({ children, style, elevated = false, pressable = false, onP
   const { styles } = useAppTheme();
   const content = <View style={[elevated ? styles.glassCard : styles.card, style]}>{children}</View>;
   if (!pressable) return content;
-  return <TouchableOpacity activeOpacity={0.86} onPress={onPress}>{content}</TouchableOpacity>;
+  return <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => ({ opacity: pressed ? 0.88 : 1 })}>{content}</Pressable>;
 }
 
 export function NoticeCard({ title, text, tone = 'primary', icon = 'info' }: { title: string; text: string; tone?: Tone; icon?: string }) {
@@ -324,8 +328,8 @@ function BottomTabsInner({ active }: { active: 'home' | 'preview' | 'cleanup' | 
     { key: 'home', label: 'Home', icon: 'home', path: '/dashboard', center: false },
     { key: 'history', label: 'History', icon: 'history', path: '/history', center: false },
     { key: 'preview', label: 'Migrate', icon: 'plus', path: '/preview', center: true },
-    { key: 'cleanup', label: 'Clean', icon: 'cleanup', path: '/cleanup', center: false },
-    { key: 'settings', label: 'Profile', icon: 'settings', path: '/settings', center: false },
+    { key: 'cleanup', label: 'Cleanup', icon: 'cleanup', path: '/cleanup', center: false },
+    { key: 'settings', label: 'Settings', icon: 'settings', path: '/settings', center: false },
   ] as const;
   return (
     <View style={styles.navBar}>
@@ -436,7 +440,7 @@ export function AppDialog({
   const { colors, styles } = useAppTheme();
   const t = getTone(colors, tone);
   return (
-    <Modal transparent visible={visible} animationType="fade" onRequestClose={onClose}>
+    <Modal transparent visible={visible} animationType="none" onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: colors.isDark ? 'rgba(0,0,0,0.68)' : 'rgba(3,18,30,0.30)', justifyContent: 'center', padding: 22 }}>
         <Pressable style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} onPress={onClose} />
         <View style={[styles.glassCard, { width: '100%', maxWidth: 430, alignSelf: 'center', padding: 20, borderColor: t.border, backgroundColor: colors.cardStrong }]}>

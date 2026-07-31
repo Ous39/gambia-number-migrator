@@ -15,7 +15,7 @@ export default function Splash() {
         const onboarded = await getJson(keys.onboarded, false);
         router.replace(onboarded ? '/dashboard' : '/onboarding');
       })();
-    }, 750);
+    }, 150);
     return () => clearTimeout(timer);
   }, []);
 

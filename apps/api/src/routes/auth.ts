@@ -6,7 +6,10 @@ import { requireAdmin, signAdminToken } from '../middleware/auth';
 import { audit } from '../services/auditService';
 
 export const authRouter = Router();
-const loginSchema = z.object({ username: z.string().min(2), password: z.string().min(6) });
+const loginSchema = z.object({
+  username: z.string().trim().min(2).max(80),
+  password: z.string().min(8).max(200),
+});
 
 authRouter.post('/auth/login', async (req, res, next) => {
   try {

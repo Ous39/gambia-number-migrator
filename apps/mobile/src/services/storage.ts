@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const keys = {
-  onboarded: 'gnm_onboarded', rules: 'gnm_rules', transition: 'gnm_transition', config: 'gnm_config', scan: 'gnm_scan', history: 'gnm_history', backups: 'gnm_backups', unlocks: 'gnm_unlocks', preferences: 'gnm_preferences', notifications: 'gnm_notifications', migrationJob: 'gnm_migration_job'
+  onboarded: 'gnm_onboarded', rules: 'gnm_rules', transition: 'gnm_transition', config: 'gnm_config', scan: 'gnm_scan', history: 'gnm_history', backups: 'gnm_backups', unlocks: 'gnm_unlocks', accessStatus: 'gnm_access_status', preferences: 'gnm_preferences', notifications: 'gnm_notifications', notificationStatus: 'gnm_notification_status', migrationJob: 'gnm_migration_job'
 };
 export async function getJson<T>(key: string, fallback: T): Promise<T> { const raw = await AsyncStorage.getItem(key); if (!raw) return fallback; try { return JSON.parse(raw) as T; } catch { return fallback; } }
 export async function setJson(key: string, value: unknown) { await AsyncStorage.setItem(key, JSON.stringify(value)); }
@@ -28,20 +28,28 @@ export async function getBackupRecords() {
 
 export async function saveBackupRecord(backup: any) {
   const chunks = Math.max(1, Math.ceil((backup.items?.length || 0) / BACKUP_CHUNK_SIZE));
-  for (let index = 0; index < chunks; index++) {
-    await setJson(backupChunkKey(backup.id, index), (backup.items || []).slice(index * BACKUP_CHUNK_SIZE, (index + 1) * BACKUP_CHUNK_SIZE));
+  const writtenKeys: string[] = [];
+  try {
+    for (let index = 0; index < chunks; index++) {
+      const key = backupChunkKey(backup.id, index);
+      await setJson(key, (backup.items || []).slice(index * BACKUP_CHUNK_SIZE, (index + 1) * BACKUP_CHUNK_SIZE));
+      writtenKeys.push(key);
+    }
+    const metadata = { ...backup, items: undefined, storageVersion: 2, chunkCount: chunks };
+    let verifiedCount = 0;
+    for (let i = 0; i < chunks; i++) verifiedCount += (await getJson<any[]>(backupChunkKey(backup.id, i), [])).length;
+    if (verifiedCount !== (backup.items?.length || 0)) throw new Error('Backup verification failed. No contacts were changed.');
+    const index = await getBackupRecords();
+    const nextIndex = [metadata, ...index.filter((item) => item.id !== backup.id)].slice(0, 30);
+    await setJson(keys.backups, nextIndex);
+    const evicted = index.filter((item) => !nextIndex.some((kept) => kept.id === item.id));
+    const evictedKeys = evicted.flatMap((item) => Array.from({ length: Number(item.chunkCount || 0) }, (_, i) => backupChunkKey(item.id, i)));
+    if (evictedKeys.length) await AsyncStorage.multiRemove(evictedKeys);
+    return metadata;
+  } catch (error) {
+    if (writtenKeys.length) await AsyncStorage.multiRemove(writtenKeys).catch(() => undefined);
+    throw error;
   }
-  const metadata = { ...backup, items: undefined, storageVersion: 2, chunkCount: chunks };
-  let verifiedCount = 0;
-  for (let i = 0; i < chunks; i++) verifiedCount += (await getJson<any[]>(backupChunkKey(backup.id, i), [])).length;
-  if (verifiedCount !== (backup.items?.length || 0)) throw new Error('Backup verification failed. No contacts were changed.');
-  const index = await getBackupRecords();
-  const nextIndex = [metadata, ...index].slice(0, 30);
-  const evicted = index.filter((item) => !nextIndex.some((kept) => kept.id === item.id));
-  const evictedKeys = evicted.flatMap((item) => Array.from({ length: Number(item.chunkCount || 0) }, (_, i) => backupChunkKey(item.id, i)));
-  if (evictedKeys.length) await AsyncStorage.multiRemove(evictedKeys);
-  await setJson(keys.backups, nextIndex);
-  return metadata;
 }
 
 export async function loadBackupItems(backup: any): Promise<any[]> {

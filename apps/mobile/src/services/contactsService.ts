@@ -220,6 +220,18 @@ async function readContactPhones(contactId: string) {
   return { contact, phoneNumbers: [...((contact.phoneNumbers || []) as ExpoPhone[])] };
 }
 
+function phoneSnapshot(phones: ExpoPhone[]) {
+  return phones.map((phone) => phoneText(phone).replace(/\D/g, '')).filter(Boolean).sort();
+}
+
+async function updateAndVerifyPhones(contact: any, expected: ExpoPhone[]) {
+  await Contacts.updateContactAsync({ ...contact, phoneNumbers: expected } as any);
+  const verified = await Contacts.getContactByIdAsync(contact.id, [Contacts.Fields.PhoneNumbers]);
+  if (!verified || JSON.stringify(phoneSnapshot((verified.phoneNumbers || []) as ExpoPhone[])) !== JSON.stringify(phoneSnapshot(expected))) {
+    throw new Error('The phone did not confirm the restored contact numbers.');
+  }
+}
+
 export async function createFullContactsBackup(onProgress?: (progress: ScanProgress) => void) {
   const contacts = await loadDeviceContacts(onProgress);
   if (!contacts.length) throw new Error('No contacts with phone numbers were found, so no backup was created.');
@@ -487,7 +499,7 @@ export async function restoreBackup(backupId: string) {
       const phoneNumbers: ExpoPhone[] = [...((contact.phoneNumbers || []) as ExpoPhone[])];
       const savedSnapshot = Array.isArray(item.beforePhoneNumbers) ? item.beforePhoneNumbers : [];
       if (savedSnapshot.length) {
-        await Contacts.updateContactAsync({ ...contact, phoneNumbers: savedSnapshot } as any);
+        await updateAndVerifyPhones(contact, savedSnapshot);
         restored++;
         continue;
       }
@@ -499,13 +511,13 @@ export async function restoreBackup(backupId: string) {
         const hasOld = phoneNumbers.some((p) => sameNormalizedPhone(phoneText(p), oldNumber));
         if (!hasOld && oldNumber) {
           phoneNumbers.push({ label: item.phoneLabel || 'mobile', number: oldNumber });
-          await Contacts.updateContactAsync({ ...contact, phoneNumbers } as any);
+          await updateAndVerifyPhones(contact, phoneNumbers);
           restored++;
         } else skipped++;
       } else if (backup.operationType === 'duplicate_add') {
         const next = phoneNumbers.filter((p) => !sameNormalizedPhone(phoneText(p), newNumber));
         if (next.length !== phoneNumbers.length) {
-          await Contacts.updateContactAsync({ ...contact, phoneNumbers: next } as any);
+          await updateAndVerifyPhones(contact, next);
           restored++;
         } else skipped++;
       } else if (backup.operationType === 'replace_update') {
@@ -522,7 +534,7 @@ export async function restoreBackup(backupId: string) {
           changed = true;
         }
         if (changed) {
-          await Contacts.updateContactAsync({ ...contact, phoneNumbers: next } as any);
+          await updateAndVerifyPhones(contact, next);
           restored++;
         } else skipped++;
       } else if (backup.operationType === 'manual_full_backup') {
@@ -530,7 +542,7 @@ export async function restoreBackup(backupId: string) {
         if (!savedPhones.length) {
           skipped++;
         } else {
-          await Contacts.updateContactAsync({ ...contact, phoneNumbers: savedPhones } as any);
+          await updateAndVerifyPhones(contact, savedPhones);
           restored++;
         }
       } else skipped++;

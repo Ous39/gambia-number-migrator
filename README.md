@@ -1,6 +1,6 @@
 # Gambia Number Migrator
 
-Current audited release: **v1.9.4**. This release improves iOS button typography and adds privacy-aware support diagnostics, searchable support codes, payment/device troubleshooting and verified paid-access restoration. Apply database migrations `001` through `011` before running this version.
+Current audited release: **v2.8.0**. This release preserves the calm, familiar interaction model while completing the OceanBrown navy/electric-blue design, strengthening payment replay/idempotency controls, adding release metadata, and expanding production documentation. Apply database migrations `001` through `014` before running this version.
 
 Gambia Number Migrator is a privacy-first monorepo application for helping users in The Gambia migrate saved contacts from old 7-digit mobile numbers to the new 9-digit format.
 

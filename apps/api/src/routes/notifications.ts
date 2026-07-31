@@ -6,7 +6,7 @@ import { audit } from '../services/auditService';
 import { env } from '../config/env';
 
 export const notificationsRouter = Router();
-const tokenSchema = z.object({ deviceId: z.string().min(8).max(200), expoPushToken: z.string().min(10).max(300), platform: z.enum(['android', 'ios']) });
+const tokenSchema = z.object({ deviceId: z.string().min(8).max(200), expoPushToken: z.string().regex(/^(Exponent|Expo)PushToken\[[^\]]+\]$/, 'Invalid Expo push token'), platform: z.enum(['android', 'ios']) });
 const notificationSchema = z.object({ title: z.string().trim().min(2).max(80), message: z.string().trim().min(2).max(500), target: z.enum(['all', 'android', 'ios']).default('all'), data: z.record(z.unknown()).optional().default({}) });
 
 notificationsRouter.post('/notifications/register-token', async (req, res, next) => {
@@ -15,6 +15,7 @@ notificationsRouter.post('/notifications/register-token', async (req, res, next)
     const device = await query('SELECT id,status FROM devices WHERE id=$1', [b.deviceId]);
     if (!device.rowCount) return res.status(404).json({ message: 'Register the device before enabling notifications' });
     if (device.rows[0].status === 'blocked') return res.status(403).json({ message: 'Device is blocked' });
+    await query('UPDATE device_push_tokens SET active=FALSE WHERE device_id=$1 AND platform=$2 AND expo_push_token<>$3', [b.deviceId,b.platform,b.expoPushToken]);
     await query(`INSERT INTO device_push_tokens (device_id,expo_push_token,platform) VALUES ($1,$2,$3)
       ON CONFLICT (expo_push_token) DO UPDATE SET device_id=EXCLUDED.device_id,platform=EXCLUDED.platform,active=TRUE,last_seen_at=NOW()`, [b.deviceId,b.expoPushToken,b.platform]);
     res.json({ ok: true });
@@ -43,7 +44,7 @@ notificationsRouter.post('/admin/notifications', requireAdmin, async (req, res, 
     const created = await query(`INSERT INTO notifications (title,message,target,data_json,status,created_by) VALUES ($1,$2,$3,$4,'sending',$5) RETURNING *`, [b.title,b.message,b.target,JSON.stringify(b.data),req.admin!.adminId]);
     const notification = created.rows[0];
     const tokens = await query(`SELECT id,expo_push_token FROM device_push_tokens WHERE active=TRUE AND ($1='all' OR platform=$1)`, [b.target]);
-    let sent = 0, failed = 0;
+    let sent = 0, failed = 0; const errors: string[] = [];
     for (let i = 0; i < tokens.rows.length; i += 100) {
       const tokenBatch = tokens.rows.slice(i, i + 100);
       const batch = tokenBatch.map((row) => ({
@@ -65,13 +66,14 @@ notificationsRouter.post('/admin/notifications', requireAdmin, async (req, res, 
         if (!response.ok) throw new Error(`Expo push returned ${response.status}`);
         const result: any = await response.json(); const tickets = Array.isArray(result?.data) ? result.data : [];
         const ok = tickets.filter((ticket: any) => ticket.status === 'ok').length; sent += ok; failed += batch.length - ok;
+        tickets.forEach((ticket: any) => { if (ticket?.status === 'error' && errors.length < 5) errors.push(String(ticket?.details?.error || ticket?.message || 'Push rejected')); });
         const invalidTokenIds = tickets.flatMap((ticket: any, index: number) => ticket?.details?.error === 'DeviceNotRegistered' ? [tokenBatch[index]?.id] : []).filter(Boolean);
         if (invalidTokenIds.length) await query('UPDATE device_push_tokens SET active=FALSE WHERE id = ANY($1::uuid[])', [invalidTokenIds]);
-      } catch { failed += batch.length; }
+      } catch (error: any) { failed += batch.length; if (errors.length < 5) errors.push(error?.message || 'Push request failed'); }
     }
     const status = tokens.rows.length === 0 ? 'no_devices' : failed === 0 ? 'sent' : sent > 0 ? 'partial' : 'failed';
     const updated = await query(`UPDATE notifications SET status=$2,sent_count=$3,failed_count=$4,sent_at=NOW() WHERE id=$1 RETURNING *`, [notification.id,status,sent,failed]);
     await audit(req, 'notification_sent', 'notification', notification.id, null, updated.rows[0]);
-    res.status(201).json({ data: { ...updated.rows[0], eligible_device_count: tokens.rows.length } });
+    res.status(201).json({ data: { ...updated.rows[0], eligible_device_count: tokens.rows.length, errors } });
   } catch (e) { next(e); }
 });

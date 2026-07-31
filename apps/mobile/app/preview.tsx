@@ -7,7 +7,7 @@ import { BackHeader, Card, EmptyState, FilterChip, FixedBottomTabs, FloatingActi
 import { AppIcon } from '../src/components/AppIcon';
 import { applyDuplicateAdd, applyReplace } from '../src/services/contactsService';
 import { getJson, keys } from '../src/services/storage';
-import { authorizeMigration } from '../src/services/unlockService';
+import { authorizeMigration, getAccessStatus, type AccessStatus } from '../src/services/unlockService';
 import { getTone, radius, type Tone, useAppTheme, useResponsive } from '../src/appTheme';
 import { hasApprovedMigrationRules } from '@gnm/shared';
 
@@ -38,11 +38,12 @@ export default function Preview() {
   const [allowReplace, setAllowReplace] = useState(false);
   const [migrationProgress, setMigrationProgress] = useState<any>(null);
   const pauseRequested = useRef(false);
+  const [access, setAccess] = useState<AccessStatus | null>(null);
 
   useFocusEffect(useCallback(() => {
     let active = true;
     setLoading(true);
-    Promise.all([getJson<any>(keys.scan, null), getJson<any>(keys.transition, null), getJson<any>(keys.rules, null)]).then(([savedScan, transition, rules]) => {
+    Promise.all([getJson<any>(keys.scan, null), getJson<any>(keys.transition, null), getJson<any>(keys.rules, null), getAccessStatus()]).then(([savedScan, transition, rules, accessStatus]) => {
       if (!active) return;
       const scanIsCurrent = Boolean(savedScan && hasApprovedMigrationRules(rules) && savedScan.rulesVersion === rules.versionNumber);
       setScan(scanIsCurrent ? savedScan : null);
@@ -50,6 +51,7 @@ export default function Preview() {
       const savedMode = scanIsCurrent ? savedScan?.candidates?.[0]?.updateMode : undefined;
       setMode(transition?.allowReplaceMode && (params.mode === 'replace' || savedMode === 'replace') ? 'replace' : 'duplicate');
       setSelected({});
+      setAccess(accessStatus);
     }).catch(() => { if (active) setScan(null); }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [params.mode]));
@@ -90,9 +92,19 @@ export default function Preview() {
   function setVisible(value: boolean) {
     setSelected((current) => {
       const next = { ...current };
-      filtered.forEach((item) => { if (item.status === 'Ready') next[candidateKey(item)] = value; });
+      let slots = access?.paid ? Number.MAX_SAFE_INTEGER : Math.max(0, access?.remaining ?? 10);
+      filtered.forEach((item) => { if (item.status === 'Ready') { const key = candidateKey(item); next[key] = value && slots > 0; if (next[key]) slots--; } });
       return next;
     });
+  }
+
+  function toggleItem(item: any) {
+    const key = candidateKey(item);
+    if (!selected[key] && !access?.paid && selectedItems.length >= (access?.remaining ?? 10)) {
+      showDialog({ title: 'Free limit reached', message: `You can select ${access?.remaining ?? 10} more contact migrations. Unlock the app for unlimited migration.`, tone: 'warning', icon: 'premium', actions: [{ text: 'Not now', variant: 'secondary' }, { text: 'Full Unlock', onPress: () => router.push('/payment') }] });
+      return;
+    }
+    setSelected((current) => ({ ...current, [key]: !current[key] }));
   }
 
   async function apply() {
@@ -155,10 +167,11 @@ export default function Preview() {
           })}
         </ScrollView>
         <View style={{ gap: 10 }}>
-          <View style={[styles.rowBetween, { gap: 10 }]}>
+          <View style={[styles.rowBetween, { gap: 10 }]}> 
             <View style={{ flex: 1, minWidth: 0 }}><Text style={styles.label}>Selection</Text><Text style={styles.small}>{selectedItems.length.toLocaleString()} selected of {visibleReady.length.toLocaleString()} ready in this view</Text></View>
             <Pill text={mode === 'duplicate' ? 'Keep old number' : 'Replace old number'} tone={mode === 'duplicate' ? 'primary' : 'warning'} />
           </View>
+          {!access?.paid ? <Text style={[styles.small, { color: colors.warning }]}>Free access: {access?.remaining ?? 10} migrations remaining. Select All is limited automatically.</Text> : null}
           <View style={{ flexDirection: 'row', gap: 10 }}>
             <SelectionButton title="Select all ready" icon="check" active onPress={() => setVisible(true)} />
             <SelectionButton title="Clear selection" icon="close" onPress={() => setVisible(false)} />
@@ -210,7 +223,7 @@ export default function Preview() {
           const selectable = item.status === 'Ready';
           return (
             <View style={{ width: '100%', maxWidth: r.maxWidth as any, alignSelf: 'center', paddingHorizontal: r.horizontalPadding }}>
-              <TouchableOpacity activeOpacity={0.76} disabled={!selectable || busy} onPress={() => setSelected((current) => ({ ...current, [key]: !current[key] }))} style={{ minHeight: 72, borderBottomWidth: 1, borderBottomColor: colors.line, paddingVertical: 10, paddingHorizontal: 4, opacity: selectable ? 1 : 0.6, backgroundColor: active ? colors.primarySoft : 'transparent' }}> 
+              <TouchableOpacity activeOpacity={0.76} disabled={!selectable || busy} onPress={() => toggleItem(item)} style={{ minHeight: 72, borderBottomWidth: 1, borderBottomColor: colors.line, paddingVertical: 10, paddingHorizontal: 4, opacity: selectable ? 1 : 0.6, backgroundColor: active ? colors.primarySoft : 'transparent' }}> 
                 <View style={[styles.row, { gap: 12 }]}> 
                   <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: t.bg, alignItems: 'center', justifyContent: 'center' }}>
                     <Text style={{ color: t.fg, fontWeight: '900', fontSize: 17 }}>{String(item.contactName || '?').trim()[0]?.toUpperCase() || '?'}</Text>

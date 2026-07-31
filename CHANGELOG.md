@@ -1,5 +1,29 @@
 # Changelog
 
+## 2.6.2 - 2026-07-21
+
+- Added dedicated Android and iOS keyboard avoidance to payment checkout.
+- Collapsed the large checkout hero and progress tracker while typing so the active phone or OTP field remains visible on small displays.
+- Retained Android resize mode and iOS automatic keyboard insets for reliable behavior across keyboard implementations.
+
+## 2.6.1 - 2026-07-21
+
+- Redesigned the checkout phone input for clearer mobile-wallet payment entry.
+- Correctly normalizes pasted `+220` and `00220` Gambian numbers instead of truncating them.
+- Added focus, validation, clear/reset, telephone autofill and keyboard-submit behavior.
+- Fixed Android keyboard overlap with resize mode and scroll-to-dismiss behavior.
+
+## 2.6.0 - 2026-07-21
+
+- Redesigned the Wave/APS purchase flow to follow the supplied four-step reference while preserving the OceanBrown purple theme.
+- Hid Full Unlock after the server confirms paid access and added clear trial/paid status on Dashboard.
+- Enforced a server-backed 10-contact free migration limit and automatically limited free Preview selections.
+- Restricted manual Backup/Restore, Replace, and Cleanup to paid devices while retaining automatic safety snapshots before permitted migrations.
+- Made backup creation transactional, removed partial chunks on failure, and verified restored phone data after each device write.
+- Added visible notification setup status and retry controls, stricter push-token validation, old-token deactivation, and admin push error details.
+- Added conditional Android Firebase configuration: `google-services.json` is included automatically when provisioned without committing it.
+- Corrected app/device version reporting and refreshed production documentation.
+
 ## 1.9.4 - 2026-07-14
 
 - Corrected shared button typography for iOS font metrics, accessibility scaling and longer labels.
@@ -299,3 +323,23 @@ See `docs/BAT_RUN_GUIDE.md`.
 - Persisted successful item keys in migration checkpoints so Dashboard and Preview update correctly after pause, restart, and resume.
 - Added a generated 100,000-contact rule-engine regression/performance test.
 - Re-ran TypeScript, automated tests, API build, Admin build, Expo configuration validation, and Expo Doctor for the release.
+# v2.7.0 — OceanBrown Product Upgrade (2026-07-30)
+
+- Redesigned mobile and administration interfaces around a deep-navy and electric-blue OceanBrown product system.
+- Added refined press feedback, keyboard focus states, reduced-motion support, and clearer semantic status colours.
+- Reworked narrow-screen admin navigation into a sticky, horizontally scrollable control surface.
+- Fixed notification inbox spacing across phone and tablet widths.
+- Added accessibility roles, labels, busy states, and navigation landmarks to key controls.
+- Added a dedicated authentication rate limit.
+- Disabled manual payment confirmation whenever payment test mode is off.
+- Synchronized application and support version labels at 2.7.0.
+- Added the complete v2.7.0 audit and production deployment gates.
+
+# v2.7.1 — Calm and Familiar Interaction Update (2026-07-31)
+
+- Removed button, icon, card, navigation, and dashboard hover scaling or shifting.
+- Replaced decorative movement with immediate opacity and colour feedback.
+- Removed dialog entrance animation and shortened the artificial splash delay.
+- Simplified onboarding language for people with different literacy and technical levels.
+- Renamed bottom navigation items to the familiar labels “Cleanup” and “Settings”.
+- Preserved reduced-motion support, OceanBrown branding, security protections, and all migration functionality.

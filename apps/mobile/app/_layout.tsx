@@ -19,7 +19,7 @@ export default function RootLayout() {
     if (Constants.appOwnership === 'expo') return;
     let remove: (() => void) | undefined;
     Promise.all([import('expo-notifications'), import('../src/services/notificationService')]).then(([Notifications, service]) => {
-      const register = () => service.setupNotifications().catch(() => undefined);
+      const register = () => service.setupNotifications();
       register();
       Notifications.getLastNotificationResponseAsync().then((last) => {
         if (last?.notification) { Notifications.setBadgeCountAsync(0).catch(() => undefined); router.push('/notifications'); }

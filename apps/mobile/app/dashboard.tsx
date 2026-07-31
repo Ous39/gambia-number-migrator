@@ -10,6 +10,7 @@ import { syncRules, syncTransition } from '../src/services/api';
 import { scanContacts } from '../src/services/contactsService';
 import { getJson, keys, setJson } from '../src/services/storage';
 import { getTone, useAppTheme, useResponsive } from '../src/appTheme';
+import { getAccessStatus, type AccessStatus } from '../src/services/unlockService';
 
 function formatNumber(n: number) {
   return Number(n || 0).toLocaleString();
@@ -26,15 +27,18 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [scanProgress, setScanProgress] = useState(0);
+  const [access, setAccess] = useState<AccessStatus | null>(null);
 
   async function load() {
-    const [syncedRules, syncedTransition, savedScan] = await Promise.all([
+    const [syncedRules, syncedTransition, savedScan, accessStatus] = await Promise.all([
       syncRules(),
       syncTransition(),
       getJson<any>(keys.scan, null),
+      getAccessStatus(),
     ]);
     setRules(syncedRules);
     setTransition(syncedTransition);
+    setAccess(accessStatus);
     const scanIsCurrent = Boolean(savedScan && hasApprovedMigrationRules(syncedRules) && savedScan.rulesVersion === syncedRules.versionNumber);
     setScan(scanIsCurrent ? savedScan : null);
     if (savedScan && !scanIsCurrent) await setJson(keys.scan, null);
@@ -111,7 +115,7 @@ export default function Dashboard() {
               <Text style={{ color: colors.primary, fontSize: 12, letterSpacing: 1.5, fontWeight: '900' }}>GAMBIA NUMBER MIGRATOR</Text>
               <Text numberOfLines={1} style={{ color: colors.text, fontSize: r.compact ? 24 : 28, lineHeight: r.compact ? 30 : 34, fontWeight: '900', marginTop: 2 }}>Dashboard</Text>
             </View>
-            <View style={{flexDirection:'row',gap:8}}><TouchableOpacity activeOpacity={0.85} onPress={() => router.push('/notifications')} style={{ width: 44, height: 44, borderRadius: 16, backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' }}><AppIcon name="notification" color={colors.primary} size={21} /></TouchableOpacity><TouchableOpacity activeOpacity={0.85} onPress={refresh} style={{ width: 44, height: 44, borderRadius: 16, backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' }}><AppIcon name="refresh" color={colors.primary} size={21} /></TouchableOpacity></View>
+            <View style={{flexDirection:'row',gap:8}}><TouchableOpacity accessibilityRole="button" accessibilityLabel="Open notifications" activeOpacity={0.85} onPress={() => router.push('/notifications')} style={{ width: 44, height: 44, borderRadius: 16, backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' }}><AppIcon name="notification" color={colors.primary} size={21} /></TouchableOpacity><TouchableOpacity accessibilityRole="button" accessibilityLabel="Refresh dashboard" accessibilityState={{busy:refreshing}} activeOpacity={0.85} onPress={refresh} style={{ width: 44, height: 44, borderRadius: 16, backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' }}><AppIcon name="refresh" color={colors.primary} size={21} /></TouchableOpacity></View>
           </View>
         </View>
       </View>
@@ -122,13 +126,13 @@ export default function Dashboard() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.scrollContent, { paddingHorizontal: r.horizontalPadding, paddingTop: 14, paddingBottom: 138 + insets.bottom, width: '100%', maxWidth: r.maxWidth as any, alignSelf: 'center' }]}
       >
-        <Card elevated style={{ padding: r.compact ? 16 : 18, marginBottom: 14, overflow: 'hidden', backgroundColor: colors.brandTop, borderColor: colors.brandMid }}>
+        <Card elevated style={{ padding: r.compact ? 18 : 22, marginBottom: 14, overflow: 'hidden', backgroundColor: colors.brandTop, borderColor: colors.brandMid }}>
           <View style={{ position: 'absolute', right: -58, top: -68, width: 190, height: 190, borderRadius: 95, backgroundColor: colors.brandBubble }} />
           <View style={[styles.rowBetween, { gap: 14, alignItems: 'flex-start' }]}> 
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={{ color: 'rgba(255,255,255,0.78)', fontWeight: '800', fontSize: 13 }}>READY TO MIGRATE SAFELY</Text>
+              <Text style={{ color: 'rgba(255,255,255,0.76)', fontWeight: '800', fontSize: 12, letterSpacing: 1.1 }}>SAFE MIGRATION STATUS</Text>
               <Text style={{ color: colors.white, fontSize: r.compact ? 36 : 42, lineHeight: r.compact ? 42 : 48, fontWeight: '900', marginTop: 3 }}>{formatNumber(metrics.pending)}</Text>
-              <Text style={{ color: 'rgba(255,255,255,0.82)', fontWeight: '700' }}>contacts ready to migrate</Text>
+              <Text style={{ color: 'rgba(255,255,255,0.82)', fontWeight: '700' }}>{scan ? 'contacts ready to migrate' : 'Run a private on-device scan'}</Text>
             </View>
             <View style={{ width: r.compact ? 62 : 72, height: r.compact ? 62 : 72, borderRadius: 24, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center' }}>
               <AppIcon name="contacts" color={colors.primary} size={30} />
@@ -194,9 +198,16 @@ export default function Dashboard() {
             <ActionTile title="Backups" text="Create or restore" icon="backup" tone="teal" onPress={() => router.push('/backup')} />
             <ActionTile title="History" text="Past activity" icon="history" tone="violet" onPress={() => router.push('/history')} />
             <ActionTile title="Remove Duplicates" text="Clean old numbers" icon="cleanup" tone="warning" onPress={() => router.push('/cleanup')} />
-            <ActionTile title="Full unlock" text="10 free updates, then unlimited" icon="premium" tone="gold" onPress={() => router.push('/payment')} />
+            {!access?.paid ? <ActionTile title="Full unlock" text={`${access?.remaining ?? 10} free migrations left`} icon="premium" tone="gold" onPress={() => router.push('/payment')} /> : null}
           </ResponsiveGrid>
         </Section>
+
+        <NoticeCard
+          title={access?.paid ? 'Contact migration unlocked' : 'Free access'}
+          text={access?.paid ? 'Payment is confirmed on this device. Unlimited migration and premium backup tools are available.' : `You can migrate up to ${access?.freeTrialLimit ?? 10} contacts for free. ${access?.remaining ?? 10} remain. Backup management, restore, replace, and cleanup require Full Unlock.`}
+          tone={access?.paid ? 'success' : 'gold'}
+          icon={access?.paid ? 'check' : 'premium'}
+        />
 
         <View style={{ marginTop: 22 }} />
         <NoticeCard title="Privacy assurance" text="Your contacts stay on your phone. Only migration rules are downloaded from the backend." tone="blue" icon="shield" />

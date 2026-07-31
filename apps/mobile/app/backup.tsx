@@ -7,6 +7,7 @@ import { AppIcon } from '../src/components/AppIcon';
 import { createFullContactsBackup, restoreBackup } from '../src/services/contactsService';
 import { deleteBackupRecord, getBackupRecords } from '../src/services/storage';
 import { useAppTheme } from '../src/appTheme';
+import { getAccessStatus, requirePaidFeature } from '../src/services/unlockService';
 
 type BackupProgress = { processed: number; total: number; percent: number } | null;
 
@@ -38,8 +39,10 @@ export default function Backup() {
   const [creating, setCreating] = useState(false);
   const [progress, setProgress] = useState<BackupProgress>(null);
   const [restoringId, setRestoringId] = useState('');
+  const [accessLoading, setAccessLoading] = useState(true);
+  const [paid, setPaid] = useState(false);
   const load = () => getBackupRecords().then(setItems);
-  useEffect(() => { load(); }, []);
+  useEffect(() => { getAccessStatus().then((status) => { setPaid(status.paid); if (status.paid) return load(); }).finally(() => setAccessLoading(false)); }, []);
 
   function confirmRestore(id: string) {
     if (creating || restoringId) return;
@@ -52,6 +55,7 @@ export default function Backup() {
         { text: 'Cancel', variant: 'secondary' },
         { text: 'Restore', tone: 'blue', onPress: async () => {
           try {
+            await requirePaidFeature();
             setRestoringId(id);
             const r = await restoreBackup(id);
             showDialog({ title: 'Restore complete', message: `Restored ${r.restored}, skipped ${r.skipped}, failed ${r.failed}`, tone: 'success', icon: 'success' });
@@ -80,6 +84,7 @@ export default function Backup() {
   async function createManualBackup() {
     if (creating) return;
     try {
+      await requirePaidFeature();
       setCreating(true);
       setProgress({ processed: 0, total: 0, percent: 0 });
       const result = await createFullContactsBackup((p) => setProgress(p));
@@ -95,6 +100,8 @@ export default function Backup() {
 
   const percent = Math.max(0, Math.min(100, progress?.percent || 0));
   const topHeader = <BackHeader title="Backups" subtitle="Create and restore local contact backups." right={creating ? <Pill text="Saving" tone="blue" /> : undefined} compact />;
+  if (accessLoading) return <ListScreen data={[]} keyExtractor={() => 'loading'} topHeader={topHeader} empty={<Card><ActivityIndicator color={colors.primary} /><Text style={[styles.body, { textAlign: 'center', marginTop: 12 }]}>Checking access…</Text></Card>} renderItem={() => null} />;
+  if (!paid) return <><ListScreen data={[]} keyExtractor={() => 'locked'} topHeader={topHeader} empty={<Card elevated style={{ alignItems: 'center', gap: 14, padding: 22 }}><View style={{ width: 74, height: 74, borderRadius: 28, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' }}><AppIcon name="lock" color={colors.primary} size={30} /></View><Text style={{ color: colors.text, fontSize: 24, fontWeight: '900', textAlign: 'center' }}>Backup is a premium feature</Text><Text style={[styles.body, { textAlign: 'center' }]}>Full Unlock is required to create, view, restore, or delete backups. A safety snapshot is still created automatically before each allowed free migration.</Text><Button title="Unlock Backup" icon="premium" onPress={() => router.push('/payment')} style={{ width: '100%', minHeight: 56 }} /><Button title="Back to Dashboard" variant="secondary" icon="home" onPress={() => router.back()} style={{ width: '100%' }} /></Card>} renderItem={() => null} /><Dialog /></>;
   const header = (
     <>
       <NoticeCard title="Protect your contacts" text="A local backup is created before every migration or cleanup. Nothing is uploaded to the backend." tone="blue" icon="backup" />

@@ -3,7 +3,7 @@
     "name": "Gambia Number Migrator",
     "slug": "gambia-number-migrator",
     "description": "Privacy-first contact number migration for The Gambia.",
-    "version": "2.5.0",
+    "version": "2.8.0",
     "icon": "./assets/icon.png",
     "orientation": "portrait",
     "scheme": "gnm",
@@ -12,21 +12,24 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.oceanbrown.gambianumbermigrator",
+      "buildNumber": "28",
       "infoPlist": {
         "NSContactsUsageDescription": "Gambia Number Migrator scans contacts locally so you can preview and safely update Gambian numbers. Contacts are not uploaded.",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
+      "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#49225B"
+        "backgroundColor": "#071A33"
       },
       "permissions": [
         "READ_CONTACTS",
         "WRITE_CONTACTS",
         "POST_NOTIFICATIONS"
       ],
+      "versionCode": 28,
       "package": "com.oceanbrown.gambianumbermigrator"
     },
     "web": {
@@ -37,11 +40,11 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#F5EBFA",
+          "backgroundColor": "#F5F7FB",
           "image": "./assets/splash-icon.png",
           "imageWidth": 180,
           "dark": {
-            "backgroundColor": "#1B0B22",
+            "backgroundColor": "#07111F",
             "image": "./assets/splash-icon.png"
           }
         }
@@ -50,7 +53,7 @@
       [
         "expo-notifications",
         {
-          "color": "#6E3482",
+          "color": "#1769FF",
           "defaultChannel": "general"
         }
       ]

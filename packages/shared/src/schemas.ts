@@ -51,6 +51,7 @@ export const paymentIntentSchema = z.object({
   amount: z.coerce.number().positive(),
   currency: z.string().default('GMD'),
   customerPhone: z.string().regex(/^(\d{7}|\d{9})$/).optional(),
+  idempotencyKey: z.string().regex(/^[A-Za-z0-9:_-]{16,100}$/),
   metadata: z.record(z.unknown()).optional().default({})
 });
 

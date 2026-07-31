@@ -15,6 +15,34 @@ export type PremiumFeatureKey = typeof PREMIUM_FEATURES[keyof typeof PREMIUM_FEA
 
 type UnlockMap = Record<string, boolean | string>;
 
+export type AccessStatus = {
+  status: 'trial' | 'pending_payment' | 'active' | 'blocked' | 'offline';
+  paid: boolean;
+  trialContactsUsed: number;
+  freeTrialLimit: number;
+  remaining: number;
+};
+
+const EMPTY_ACCESS: AccessStatus = { status: 'offline', paid: false, trialContactsUsed: 0, freeTrialLimit: 10, remaining: 10 };
+
+export async function getAccessStatus(): Promise<AccessStatus> {
+  const cached = await getJson<AccessStatus>(keys.accessStatus, EMPTY_ACCESS);
+  try {
+    const deviceId = await getDeviceFingerprint();
+    await registerDevice(deviceId, getDeviceInfo());
+    const remote = await getDeviceStatus(deviceId);
+    const used = Math.max(0, Number(remote?.trialContactsUsed || 0));
+    const limit = Math.max(0, Number(remote?.freeTrialLimit ?? 10));
+    const status = String(remote?.status || 'trial') as AccessStatus['status'];
+    const next = { status, paid: status === 'active', trialContactsUsed: used, freeTrialLimit: limit, remaining: Math.max(0, limit - used) };
+    await setJson(keys.accessStatus, next);
+    if (next.paid) await markFeatureUnlocked(PREMIUM_FEATURES.bulkUnlock, 'server-confirmed');
+    return next;
+  } catch {
+    return cached;
+  }
+}
+
 export async function isFeatureUnlocked(featureKey: PremiumFeatureKey): Promise<boolean> {
   const unlocks = await getJson<UnlockMap>(keys.unlocks, {});
   return Boolean(unlocks[featureKey] || unlocks[PREMIUM_FEATURES.bulkUnlock]);
@@ -38,7 +66,10 @@ export async function authorizeMigration(count: number, mode: 'duplicate' | 'rep
   await registerDevice(deviceId, getDeviceInfo());
   const status = await getDeviceStatus(deviceId);
   if (status?.status === 'blocked') throw new Error('This device is blocked. Contact support for assistance.');
-  if (status?.status === 'active') return { access: 'paid' as const, remaining: null };
+  if (status?.status === 'active') {
+    await getAccessStatus();
+    return { access: 'paid' as const, remaining: null };
+  }
   if (mode === 'replace') throw new Error('Replace mode is a premium feature. Complete payment to continue.');
   try {
     const result = await consumeTrialAllowance(deviceId, count);
@@ -50,8 +81,11 @@ export async function authorizeMigration(count: number, mode: 'duplicate' | 'rep
 
 export async function requirePaidFeature() {
   const deviceId = await getDeviceFingerprint();
-  await registerDevice(deviceId, getDeviceInfo());
-  const status = await getDeviceStatus(deviceId);
-  if (status?.status !== 'active') throw new Error('This feature requires the full unlock. Complete payment to continue.');
+  const registered = await registerDevice(deviceId, getDeviceInfo());
+  if (!registered) throw new Error('Connect to the internet so the app can verify your Full Unlock.');
+  const remote = await getDeviceStatus(deviceId);
+  if (remote?.status === 'blocked') throw new Error('This device is blocked. Contact support for assistance.');
+  if (remote?.status !== 'active') throw new Error('This feature requires the full unlock. Complete payment to continue.');
+  await getAccessStatus();
   return true;
 }

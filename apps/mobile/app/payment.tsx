@@ -7,6 +7,7 @@ import { registerDevice, syncConfig } from '../src/services/api';
 import { getDeviceFingerprint, getDeviceInfo } from '../src/services/deviceService';
 import { getTone, radius, type Tone, useAppTheme } from '../src/appTheme';
 import { AppIcon } from '../src/components/AppIcon';
+import { getAccessStatus } from '../src/services/unlockService';
 
 type Provider = 'wave' | 'aps';
 
@@ -43,6 +44,7 @@ function DirectPayment() {
   const [deviceId, setDeviceId] = useState('');
   const [amount, setAmount] = useState(FALLBACK_AMOUNT);
   const [priceLoading, setPriceLoading] = useState(true);
+  const [paid, setPaid] = useState(false);
   const selected = useMemo(() => providers.find((p) => p.key === provider) || providers[0], [provider]);
 
   useEffect(() => {
@@ -51,12 +53,17 @@ function DirectPayment() {
         const fp = await getDeviceFingerprint();
         setDeviceId(fp);
         await registerDevice(fp, getDeviceInfo()).catch(() => undefined);
-        const config = await syncConfig();
+        const [config, status] = await Promise.all([syncConfig(), getAccessStatus()]);
+        setPaid(status.paid);
         const configuredPrice = Number(config.subscription_price);
         if (Number.isFinite(configuredPrice) && configuredPrice > 0) setAmount(configuredPrice);
       } finally { setPriceLoading(false); }
     })();
   }, []);
+
+  if (!priceLoading && paid) {
+    return <Screen><BackHeader title="Contact Migration Pass" subtitle="Access status on this device." compact /><Card elevated style={{ alignItems: 'center', gap: 14, padding: 24 }}><View style={{ width: 92, height: 92, borderRadius: 46, backgroundColor: colors.successSoft, alignItems: 'center', justifyContent: 'center' }}><AppIcon name="check" color={colors.success} size={42} /></View><Text style={{ color: colors.text, fontSize: 28, fontWeight: '900', textAlign: 'center' }}>Already unlocked</Text><Text style={[styles.body, { textAlign: 'center' }]}>Your payment is confirmed. Unlimited migration and premium backup tools are active on this device.</Text><Button title="Scan My Contacts" icon="right" onPress={() => router.replace('/dashboard')} style={{ width: '100%', minHeight: 58 }} /></Card></Screen>;
+  }
 
   function continueToCheckout() {
     router.push({ pathname: '/payment-checkout', params: { provider: selected.key, amount: String(amount) } });
@@ -72,9 +79,9 @@ function DirectPayment() {
         <View style={{ padding: 22 }}>
           <View style={[styles.rowBetween, { gap: 12, alignItems: 'flex-start' }]}> 
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={{ color: 'rgba(255,255,255,0.72)', fontWeight: '900', letterSpacing: 1.2, fontSize: 12 }}>SECURE TEST PAYMENT</Text>
+              <Text style={{ color: 'rgba(255,255,255,0.72)', fontWeight: '900', letterSpacing: 1.2, fontSize: 12 }}>ONE-TIME SECURE PAYMENT</Text>
               <Text style={{ color: colors.white, fontSize: 33, lineHeight: 39, fontWeight: '900', marginTop: 8, letterSpacing: -0.8 }}>Unlock contact migration</Text>
-              <Text style={{ color: 'rgba(255,255,255,0.80)', fontWeight: '700', lineHeight: 21, marginTop: 8 }}>Choose Wave or APS, enter the customer phone number, then confirm a 4-digit OTP. No live money is charged.</Text>
+              <Text style={{ color: 'rgba(255,255,255,0.80)', fontWeight: '700', lineHeight: 21, marginTop: 8 }}>Choose Wave or APS, enter your payment phone number, then confirm the 4-digit code.</Text>
             </View>
             <View style={{ width: 62, height: 62, borderRadius: 24, backgroundColor: 'rgba(255,255,255,0.14)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.20)', alignItems: 'center', justifyContent: 'center' }}>
               <AppIcon name="shield" color={colors.white} size={27} />
@@ -102,9 +109,9 @@ function DirectPayment() {
           </View>
         </View>
         <View style={{ padding: 16, gap: 10 }}>
-          <FeatureRow text="One-time payment for contact migration features on this device" />
+          <FeatureRow text="Scan and preview contacts before making changes" />
           <FeatureRow text="A payment unlock is applied only after server confirmation" />
-          <FeatureRow text="Each transaction receives a unique payment reference" />
+          <FeatureRow text="Create backups, migrate eligible numbers, and restore when needed" />
           <FeatureRow text="Contacts remain private and stay on this device" />
         </View>
       </Card>

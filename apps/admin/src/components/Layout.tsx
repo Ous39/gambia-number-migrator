@@ -33,11 +33,11 @@ export default function Layout() {
     <div className="appShell">
       <aside className="sidebar">
         <div className="logo"><div className="logoMark">GN</div><span>Gambia Number<small>Migration Console</small></span></div>
-        <nav className="nav">{links.map(([to, label, Icon]) => <NavLink key={String(to)} to={String(to)}><Icon size={19}/> <span>{String(label)}</span></NavLink>)}</nav>
+        <nav className="nav" aria-label="Administration sections">{links.map(([to, label, Icon]) => <NavLink key={String(to)} to={String(to)}><Icon aria-hidden="true" size={19}/> <span>{String(label)}</span></NavLink>)}</nav>
         <div className="sideHelp">
           <div className="adminIdentity"><div>{(admin?.fullName||admin?.username||'A').slice(0,1).toUpperCase()}</div><span><b>{admin?.fullName||admin?.username||'Administrator'}</b><small>{admin?.role||'admin'} account</small></span></div>
-          <button className="themeToggle" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? <Sun size={18}/> : <Moon size={18}/>} {theme === 'dark' ? 'Light mode' : 'Dark mode'}</button>
-          <button className="btn secondary" onClick={logout}><LogOut size={18}/> Logout</button>
+          <button type="button" className="themeToggle" aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? <Sun size={18}/> : <Moon size={18}/>} {theme === 'dark' ? 'Light mode' : 'Dark mode'}</button>
+          <button type="button" className="btn secondary" onClick={logout}><LogOut size={18}/> Logout</button>
           <small className="oceanCredit">Powered by OceanBrown</small>
           <small className="apiStatus">API · {API_BASE_URL.replace(/^https?:\/\//,'')}</small>
         </div>

@@ -12,23 +12,23 @@ const pages = [
   {
     tag: 'Number reform',
     icon: '7→9',
-    title: 'Why Numbers Changed',
-    text: "The Gambia's phone network is growing. Old 7-digit numbers are being upgraded to 9-digit numbers to support more connections and future services.",
-    note: 'Existing contacts may need updating to keep working.',
+    title: 'Phone Numbers Are Changing',
+    text: 'Gambian phone numbers are changing from 7 digits to 9 digits. This app helps update the numbers saved on your phone.',
+    note: 'Example: the correct two digits are added to the old number.',
   },
   {
     tag: 'Guided update',
     icon: 'update',
-    title: 'How It Works',
-    text: 'Scan your phonebook, preview every change, then choose Add Mode or Replace Mode. You stay in control before anything is updated.',
-    note: 'QCell → 83, Comium → 86, Africell → 87.',
+    title: 'Scan, Check, Then Update',
+    text: 'First scan your contacts. Next check every change. The app updates contacts only after you press Confirm.',
+    note: 'Nothing changes without your confirmation.',
   },
   {
     tag: 'Privacy first',
     icon: 'lock',
-    title: 'Your Privacy Matters',
-    text: 'Your contacts stay on your device. No contact names or phonebook data are uploaded to any server.',
-    note: 'We only need Contacts access to scan and update your phonebook locally.',
+    title: 'Your Contacts Stay Private',
+    text: 'Your contact names and phone numbers stay on your phone. They are not uploaded to our server.',
+    note: 'Contacts access is used only to scan and update your phonebook.',
   },
 ];
 

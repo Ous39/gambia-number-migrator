@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import { Router } from 'express';
 import { paymentIntentSchema, paymentOtpSchema } from '@gnm/shared';
 import { env } from '../config/env';
-import { query } from '../db/pool';
+import { query, withTransaction } from '../db/pool';
 import { requireAdmin } from '../middleware/auth';
 import { audit } from '../services/auditService';
 
@@ -24,9 +24,15 @@ function secureEqual(left: string, right: string) {
 
 function verifyWebhook(req: any, provider: 'wave' | 'aps') {
   const configured = provider === 'wave' ? env.waveWebhookSecret : env.apsWebhookSecret;
-  if (!configured) return false;
-  const supplied = String(req.header('x-webhook-secret') || '');
-  return secureEqual(supplied, configured);
+  const timestamp = String(req.header('x-webhook-timestamp') || '');
+  const eventId = String(req.header('x-webhook-id') || '');
+  const supplied = String(req.header('x-webhook-signature') || '').replace(/^sha256=/, '');
+  const timestampMs = Number(timestamp) * 1000;
+  if (!configured || !eventId || !supplied || !Number.isFinite(timestampMs)) return null;
+  if (Math.abs(Date.now() - timestampMs) > env.webhookToleranceSeconds * 1000) return null;
+  const rawBody = Buffer.isBuffer(req.rawBody) ? req.rawBody.toString('utf8') : JSON.stringify(req.body || {});
+  const expected = crypto.createHmac('sha256', configured).update(`${timestamp}.${rawBody}`).digest('hex');
+  return secureEqual(supplied, expected) ? { eventId } : null;
 }
 
 async function markDevicePaymentState(deviceId: string, status: 'pending_payment' | 'active') {
@@ -57,15 +63,23 @@ paymentsRouter.post('/payments/create-intent', async (req, res, next) => {
     const configured = await query("SELECT config_value FROM app_config WHERE config_key='subscription_price' LIMIT 1");
     const requiredAmount = Number(configured.rows[0]?.config_value ?? 100);
     if (b.amount !== requiredAmount || b.currency !== 'GMD') return res.status(400).json({ message: `Payment amount must be D${requiredAmount} GMD` });
+    const existing = await query(
+      'SELECT * FROM payments WHERE device_id=$1 AND idempotency_key=$2 LIMIT 1',
+      [b.deviceId, b.idempotencyKey]
+    );
+    if (existing.rowCount) {
+      const payment = existing.rows[0];
+      return res.json({ data: { reference: payment.reference, provider: payment.provider, amount: payment.amount, currency: payment.currency, status: payment.status, testOtp: null } });
+    }
     const ref = createReference();
     const testOtp = env.paymentTestMode ? String(crypto.randomInt(1000, 10000)) : null;
     const otpHashValue = testOtp ? otpHash(ref, testOtp) : null;
     const otpExpiresAt = testOtp ? new Date(Date.now() + 5 * 60 * 1000) : null;
     const r = await query(
-      `INSERT INTO payments (provider, reference, device_id, feature_key, amount, currency, status, checkout_url, metadata_json, otp_hash, otp_expires_at)
-       VALUES ($1,$2,$3,$4,$5,$6,'pending',NULL,$7,$8,$9) RETURNING *`,
+      `INSERT INTO payments (provider, reference, device_id, feature_key, amount, currency, status, checkout_url, metadata_json, otp_hash, otp_expires_at, idempotency_key)
+       VALUES ($1,$2,$3,$4,$5,$6,'pending',NULL,$7,$8,$9,$10) RETURNING *`,
       [b.provider, ref, b.deviceId, b.featureKey, b.amount, b.currency,
-       JSON.stringify({ ...(b.metadata || {}), customerPhone: b.customerPhone || null }), otpHashValue, otpExpiresAt]
+       JSON.stringify({ ...(b.metadata || {}), customerPhone: b.customerPhone || null }), otpHashValue, otpExpiresAt, b.idempotencyKey]
     );
     await markDevicePaymentState(b.deviceId, 'pending_payment');
     const payment = r.rows[0];
@@ -105,9 +119,40 @@ paymentsRouter.get('/payments/:reference/status', async (req, res, next) => {
 for (const provider of ['wave', 'aps'] as const) {
   paymentsRouter.post(`/payments/webhook/${provider}`, async (req, res, next) => {
     try {
-      if (!verifyWebhook(req, provider)) return res.status(401).json({ message: 'Invalid webhook signature' });
-      const r = await applyPaymentStatus(String(req.body.reference || ''), String(req.body.status || ''), req.body.externalReference || null);
-      res.json({ ok: true, reference: r.rows[0].reference });
+      const verification = verifyWebhook(req, provider);
+      if (!verification) return res.status(401).json({ message: 'Invalid or expired webhook signature' });
+      const reference = String(req.body.reference || '');
+      const result = await withTransaction(async (client) => {
+        const inserted = await client.query(
+          `INSERT INTO payment_webhook_events(provider,event_id,payment_reference)
+           VALUES ($1,$2,$3) ON CONFLICT(provider,event_id) DO NOTHING RETURNING id`,
+          [provider, verification.eventId, reference]
+        );
+        if (!inserted.rowCount) return { duplicate: true, reference };
+        const allowed = ['pending', 'success', 'failed', 'cancelled', 'expired', 'under_review'];
+        const status = String(req.body.status || '');
+        if (!allowed.includes(status)) throw Object.assign(new Error('Unsupported payment status'), { status: 400 });
+        const updated = await client.query(
+          `UPDATE payments SET
+             status=CASE WHEN payments.status='success' THEN 'success' ELSE $1 END,
+             external_reference=COALESCE($2,external_reference),
+             paid_at=CASE WHEN payments.status='success' OR $1='success' THEN COALESCE(paid_at,NOW()) ELSE paid_at END,
+             updated_at=NOW()
+           WHERE reference=$3 RETURNING *`,
+          [status, req.body.externalReference || null, reference]
+        );
+        if (!updated.rowCount) throw Object.assign(new Error('Payment not found'), { status: 404 });
+        if (status === 'success') {
+          await client.query(
+            `INSERT INTO devices(id,status,subscribed_at) VALUES($1,'active',NOW())
+             ON CONFLICT(id) DO UPDATE SET status=CASE WHEN devices.status='blocked' THEN devices.status ELSE 'active' END,
+             subscribed_at=NOW(),updated_at=NOW()`,
+            [updated.rows[0].device_id]
+          );
+        }
+        return { duplicate: false, reference };
+      });
+      res.json({ ok: true, ...result });
     } catch (e) { next(e); }
   });
 }
@@ -118,6 +163,9 @@ paymentsRouter.get('/admin/payments', requireAdmin, async (_req, res, next) => {
 
 paymentsRouter.post('/admin/payments/:id/confirm-manual', requireAdmin, async (req, res, next) => {
   try {
+    if (!env.paymentTestMode) {
+      return res.status(403).json({ message: 'Manual payment confirmation is disabled outside test mode' });
+    }
     const found = await query('SELECT reference FROM payments WHERE id=$1', [req.params.id]);
     if (!found.rowCount) return res.status(404).json({ message: 'Payment not found' });
     const r = await applyPaymentStatus(found.rows[0].reference, 'success', 'ADMIN-MANUAL');

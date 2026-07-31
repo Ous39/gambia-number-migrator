@@ -12,6 +12,7 @@ export const env = {
   paymentTestMode: process.env.PAYMENT_TEST_MODE === 'true',
   waveWebhookSecret: process.env.WAVE_WEBHOOK_SECRET || '',
   apsWebhookSecret: process.env.APS_WEBHOOK_SECRET || '',
+  webhookToleranceSeconds: Number(process.env.PAYMENT_WEBHOOK_TOLERANCE_SECONDS || 300),
   expoAccessToken: process.env.EXPO_ACCESS_TOKEN || '',
   corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:5173',
   adminBaseUrl: process.env.ADMIN_BASE_URL || 'http://localhost:5173'
@@ -22,6 +23,7 @@ if (env.nodeEnv === 'production') {
   if (!process.env.DATABASE_URL) problems.push('DATABASE_URL is required');
   if (!process.env.JWT_SECRET || env.jwtSecret.length < 32 || env.jwtSecret === 'dev-only-change-me') problems.push('JWT_SECRET must be a random value of at least 32 characters');
   if (env.paymentTestMode) problems.push('PAYMENT_TEST_MODE must be false');
+  if (!Number.isFinite(env.webhookToleranceSeconds) || env.webhookToleranceSeconds < 60 || env.webhookToleranceSeconds > 900) problems.push('PAYMENT_WEBHOOK_TOLERANCE_SECONDS must be between 60 and 900');
   if (/localhost|127\.0\.0\.1/.test(env.corsOrigin)) problems.push('CORS_ORIGIN must contain the production admin origin');
   if (problems.length) throw new Error(`Invalid production configuration: ${problems.join('; ')}`);
 }

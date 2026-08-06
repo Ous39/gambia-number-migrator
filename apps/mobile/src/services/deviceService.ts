@@ -56,6 +56,6 @@ export function getDeviceInfo() {
     osName: Device.osName ?? null,
     osVersion: Device.osVersion ?? null,
     platform: Platform.OS,
-    appVersion: Application.nativeApplicationVersion ?? '2.8.0'
+    appVersion: Application.nativeApplicationVersion ?? '2.8.1'
   };
 }

@@ -1,6 +1,6 @@
 {
   "name": "@gnm/api",
-  "version": "2.8.0",
+  "version": "2.8.4",
   "private": true,
   "main": "dist/index.js",
   "scripts": {

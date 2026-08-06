@@ -92,3 +92,11 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
 .nav a:hover:not(.active),.nav a:active,.btn:active,.heroButton:active,.themeToggle:active,
 .metricCard:hover,.summaryCard:hover{transform:none}
 .btn:active,.heroButton:active,.themeToggle:active{opacity:.84}
+
+/* Fixed administration navbar: identity and session controls stay visible. */
+.adminWorkspace{min-width:0}
+.adminNavbar{position:sticky;top:0;z-index:70;min-height:72px;padding:12px clamp(22px,4vw,52px);display:flex;align-items:center;justify-content:space-between;gap:18px;background:color-mix(in srgb,var(--card) 92%,transparent);border-bottom:1px solid var(--line);backdrop-filter:blur(16px)}
+.navbarIdentity{display:flex;align-items:center;gap:11px;min-width:0}.navbarIdentity>div{width:42px;height:42px;border-radius:14px;display:grid;place-items:center;background:var(--primary-strong);color:#fff;font-weight:950}.navbarIdentity span{display:grid;min-width:0}.navbarIdentity b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.navbarIdentity small{color:var(--muted);text-transform:capitalize}
+.navbarActions{display:flex;align-items:center;gap:9px}.navbarButton{min-height:42px;padding:9px 13px;border:1px solid var(--line);border-radius:13px;background:var(--surface);color:var(--text);font-weight:850;display:inline-flex;align-items:center;gap:8px}.navbarButton:hover{border-color:var(--border)}.logoutButton{color:var(--danger)}
+@media(max-width:920px){.appShell{display:block}.sidebar{height:auto}.adminNavbar{top:120px}}
+@media(max-width:620px){.adminNavbar{top:120px;padding:10px 14px}.navbarIdentity b{max-width:130px}.navbarButton span{display:none}.navbarButton{width:42px;padding:0;justify-content:center}}

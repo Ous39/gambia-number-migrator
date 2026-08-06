@@ -1,6 +1,6 @@
 {
   "name": "@gnm/admin",
-  "version": "2.8.0",
+  "version": "2.8.4",
   "private": true,
   "type": "module",
   "scripts": {
@@ -14,10 +14,10 @@
   "dependencies": {
     "@gnm/shared": "workspace:*",
     "@vitejs/plugin-react": "^4.3.3",
-    "vite": "^5.4.10",
+    "vite": "^6.4.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-router-dom": "^6.28.0",
+    "react-router-dom": "7.18.2",
     "lucide-react": "^0.468.0"
   },
   "devDependencies": {

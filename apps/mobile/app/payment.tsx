@@ -14,7 +14,7 @@ type Provider = 'wave' | 'aps';
 const FALLBACK_AMOUNT = 100;
 const providers: { key: Provider; title: string; subtitle: string; icon: string; tone: Tone; badge: string }[] = [
   { key: 'wave', title: 'Wave', subtitle: 'Fast mobile wallet checkout with phone number and OTP.', icon: 'phone', tone: 'blue', badge: 'Popular' },
-  { key: 'aps', title: 'APS', subtitle: 'APS test checkout prepared for local payment routing.', icon: 'card', tone: 'violet', badge: 'Gateway' },
+  { key: 'aps', title: 'APS', subtitle: 'Secure local payment checkout with phone verification.', icon: 'card', tone: 'violet', badge: 'Gateway' },
 ];
 
 export default function Payment() {
@@ -45,6 +45,7 @@ function DirectPayment() {
   const [amount, setAmount] = useState(FALLBACK_AMOUNT);
   const [priceLoading, setPriceLoading] = useState(true);
   const [paid, setPaid] = useState(false);
+  const paymentTestMode = process.env.EXPO_PUBLIC_PAYMENT_TEST_MODE === 'true';
   const selected = useMemo(() => providers.find((p) => p.key === provider) || providers[0], [provider]);
 
   useEffect(() => {
@@ -171,7 +172,12 @@ function DirectPayment() {
         </Card>
       </Section>
 
-      <NoticeCard title="Test mode only" text="This payment flow is a professional UI simulation. Live Wave/APS merchant credentials and callback verification should be added before public release." tone="blue" icon="shield" />
+      <NoticeCard
+        title={paymentTestMode ? 'Test payment mode' : 'Secure payment'}
+        text={paymentTestMode ? 'No real charge will be made. The checkout will provide a development OTP for verification.' : 'GNM never stores your wallet PIN or OTP. Payment confirmation is verified securely before this device is unlocked.'}
+        tone={paymentTestMode ? 'warning' : 'blue'}
+        icon="shield"
+      />
 
       <View style={{ marginTop: 20, marginBottom: 8, backgroundColor: colors.card, borderRadius: 28, borderWidth: 1, borderColor: colors.line, padding: 14, shadowColor: colors.shadow, shadowOpacity: colors.isDark ? 0.20 : 0.08, shadowRadius: 20, shadowOffset: { width: 0, height: 10 }, elevation: 3 }}>
         <View style={[styles.rowBetween, { gap: 12, marginBottom: 12 }]}> 

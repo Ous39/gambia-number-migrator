@@ -180,11 +180,11 @@ export function Card({ children, style, elevated = false, pressable = false, onP
   return <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => ({ opacity: pressed ? 0.88 : 1 })}>{content}</Pressable>;
 }
 
-export function NoticeCard({ title, text, tone = 'primary', icon = 'info' }: { title: string; text: string; tone?: Tone; icon?: string }) {
+export function NoticeCard({ title, text, tone = 'primary', icon = 'info', style }: { title: string; text: string; tone?: Tone; icon?: string; style?: StyleProp<ViewStyle> }) {
   const { colors, styles } = useAppTheme();
   const t = getTone(colors, tone);
   return (
-    <Card style={{ flexDirection: 'row', gap: 12, backgroundColor: t.bg, borderColor: t.border }}>
+    <Card style={[{ flexDirection: 'row', gap: 12, marginVertical: 12, backgroundColor: t.bg, borderColor: t.border }, style]}>
       <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: t.border }}>
         <AppIcon name={icon} color={t.fg} size={16} />
       </View>

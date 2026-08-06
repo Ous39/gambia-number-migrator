@@ -14,6 +14,6 @@ dashboardRouter.get('/admin/dashboard', requireAdmin, async (_req, res, next) =>
       query('SELECT * FROM transition_settings ORDER BY updated_at DESC LIMIT 1'),
       query('SELECT action, entity_type, created_at FROM audit_logs ORDER BY created_at DESC LIMIT 10')
     ]);
-    res.json({ data: { totalRules: rules.rows[0].count, activeRules: activeRules.rows[0].count, operators: operators.rows[0].count, paymentsToday: paymentsToday.rows[0].count, appVersion: '2.8.0', lastRulesPublishDate: latestVersion.rows[0]?.published_at || null, currentTransitionSettings: transition.rows[0] ? mapTransition(transition.rows[0]) : null, recentActivity: logs.rows } });
+    res.json({ data: { totalRules: rules.rows[0].count, activeRules: activeRules.rows[0].count, operators: operators.rows[0].count, paymentsToday: paymentsToday.rows[0].count, appVersion: '2.8.1', lastRulesPublishDate: latestVersion.rows[0]?.published_at || null, currentTransitionSettings: transition.rows[0] ? mapTransition(transition.rows[0]) : null, recentActivity: logs.rows } });
   } catch (e) { next(e); }
 });

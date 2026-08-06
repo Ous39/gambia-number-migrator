@@ -3,7 +3,7 @@
     "name": "Gambia Number Migrator",
     "slug": "gambia-number-migrator",
     "description": "Privacy-first contact number migration for The Gambia.",
-    "version": "2.8.0",
+    "version": "2.8.4",
     "icon": "./assets/icon.png",
     "orientation": "portrait",
     "scheme": "gnm",
@@ -12,7 +12,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.oceanbrown.gambianumbermigrator",
-      "buildNumber": "28",
+      "buildNumber": "32",
       "infoPlist": {
         "NSContactsUsageDescription": "Gambia Number Migrator scans contacts locally so you can preview and safely update Gambian numbers. Contacts are not uploaded.",
         "ITSAppUsesNonExemptEncryption": false
@@ -29,7 +29,7 @@
         "WRITE_CONTACTS",
         "POST_NOTIFICATIONS"
       ],
-      "versionCode": 28,
+      "versionCode": 32,
       "package": "com.oceanbrown.gambianumbermigrator"
     },
     "web": {

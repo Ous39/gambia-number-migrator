@@ -35,14 +35,20 @@ export default function Layout() {
         <div className="logo"><div className="logoMark">GN</div><span>Gambia Number<small>Migration Console</small></span></div>
         <nav className="nav" aria-label="Administration sections">{links.map(([to, label, Icon]) => <NavLink key={String(to)} to={String(to)}><Icon aria-hidden="true" size={19}/> <span>{String(label)}</span></NavLink>)}</nav>
         <div className="sideHelp">
-          <div className="adminIdentity"><div>{(admin?.fullName||admin?.username||'A').slice(0,1).toUpperCase()}</div><span><b>{admin?.fullName||admin?.username||'Administrator'}</b><small>{admin?.role||'admin'} account</small></span></div>
-          <button type="button" className="themeToggle" aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? <Sun size={18}/> : <Moon size={18}/>} {theme === 'dark' ? 'Light mode' : 'Dark mode'}</button>
-          <button type="button" className="btn secondary" onClick={logout}><LogOut size={18}/> Logout</button>
           <small className="oceanCredit">Powered by OceanBrown</small>
           <small className="apiStatus">API · {API_BASE_URL.replace(/^https?:\/\//,'')}</small>
         </div>
       </aside>
-      <main className="main"><Outlet /></main>
+      <div className="adminWorkspace">
+        <header className="adminNavbar">
+          <div className="navbarIdentity"><div>{(admin?.fullName||admin?.username||'A').slice(0,1).toUpperCase()}</div><span><b>{admin?.fullName||admin?.username||'Administrator'}</b><small>{admin?.role === 'owner' ? 'System Owner' : `${admin?.role||'admin'} account`}</small></span></div>
+          <div className="navbarActions">
+            <button type="button" className="navbarButton" aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? <Sun size={18}/> : <Moon size={18}/>}<span>{theme === 'dark' ? 'Light mode' : 'Dark mode'}</span></button>
+            <button type="button" className="navbarButton logoutButton" onClick={logout}><LogOut size={18}/><span>Logout</span></button>
+          </div>
+        </header>
+        <main className="main"><Outlet /></main>
+      </div>
     </div>
   );
 }

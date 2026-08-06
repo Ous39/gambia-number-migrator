@@ -2,13 +2,23 @@ import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
-import { registerDevice, registerPushToken } from './api';
+import { registerDevice, registerPushToken, setNotificationPreference } from './api';
 import { getDeviceFingerprint, getDeviceInfo } from './deviceService';
-import { keys, setJson } from './storage';
+import { getJson, keys, setJson } from './storage';
 
 Notifications.setNotificationHandler({ handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: true }) });
 
 export type NotificationSetupResult = { enabled: boolean; reason?: string; updatedAt: string };
+
+export async function getNotificationStatus(): Promise<NotificationSetupResult> {
+  const saved = await getJson<NotificationSetupResult | null>(keys.notificationStatus, null);
+  if (Platform.OS === 'web' || !Device.isDevice) return saved || { enabled: false, reason: 'A physical Android or iPhone is required.', updatedAt: new Date().toISOString() };
+  const permission = await Notifications.getPermissionsAsync();
+  if (permission.status !== 'granted') {
+    return { enabled: false, reason: permission.canAskAgain === false ? 'Notifications are blocked in your phone settings.' : 'Notifications are off.', updatedAt: new Date().toISOString() };
+  }
+  return saved?.enabled ? saved : { enabled: false, reason: 'Notifications are allowed by the phone but are not enabled for this app yet.', updatedAt: new Date().toISOString() };
+}
 
 async function finish(result: Omit<NotificationSetupResult, 'updatedAt'>) {
   const value = { ...result, updatedAt: new Date().toISOString() };
@@ -34,5 +44,18 @@ export async function setupNotifications(): Promise<NotificationSetupResult> {
     return finish({ enabled: true });
   } catch (error: any) {
     return finish({ enabled: false, reason: error?.message || 'Notification setup failed.' });
+  }
+}
+
+export async function disableNotifications(): Promise<NotificationSetupResult> {
+  try {
+    if (Platform.OS !== 'web' && Device.isDevice) {
+      const deviceId = await getDeviceFingerprint();
+      await setNotificationPreference(deviceId, false);
+      await Notifications.setBadgeCountAsync(0).catch(() => undefined);
+    }
+    return finish({ enabled: false, reason: 'Notifications are turned off. You can enable them again from Settings.' });
+  } catch (error: any) {
+    return finish({ enabled: false, reason: error?.message || 'Could not update notification preferences.' });
   }
 }

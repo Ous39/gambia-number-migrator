@@ -1,5 +1,4 @@
 import React, { useEffect } from 'react';
-import { AppState } from 'react-native';
 import { Slot } from 'expo-router';
 import { router } from 'expo-router';
 import Constants from 'expo-constants';
@@ -18,9 +17,7 @@ export default function RootLayout() {
     // in development/production builds so local Expo Go testing stays warning-free.
     if (Constants.appOwnership === 'expo') return;
     let remove: (() => void) | undefined;
-    Promise.all([import('expo-notifications'), import('../src/services/notificationService')]).then(([Notifications, service]) => {
-      const register = () => service.setupNotifications();
-      register();
+    import('expo-notifications').then((Notifications) => {
       Notifications.getLastNotificationResponseAsync().then((last) => {
         if (last?.notification) { Notifications.setBadgeCountAsync(0).catch(() => undefined); router.push('/notifications'); }
       }).catch(() => undefined);
@@ -28,8 +25,7 @@ export default function RootLayout() {
         Notifications.setBadgeCountAsync(0).catch(() => undefined);
         router.push('/notifications');
       });
-      const appStateSubscription = AppState.addEventListener('change', (state) => { if (state === 'active') register(); });
-      remove = () => { subscription.remove(); appStateSubscription.remove(); };
+      remove = () => { subscription.remove(); };
     }).catch(() => undefined);
     return () => remove?.();
   }, []);

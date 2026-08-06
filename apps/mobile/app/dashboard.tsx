@@ -4,7 +4,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { router, useFocusEffect } from 'expo-router';
 import { getRecommendedUpdateMode, getTransitionStatus, hasApprovedMigrationRules } from '@gnm/shared';
 import { Button } from '../src/components/Button';
-import { ActionTile, Card, FixedBottomTabs, MetricCard, NoticeCard, ProgressBar, ResponsiveGrid, Section, useAppDialog } from '../src/components/UI';
+import { Card, FixedBottomTabs, MetricCard, NoticeCard, ProgressBar, ResponsiveGrid, Section, useAppDialog } from '../src/components/UI';
 import { AppIcon } from '../src/components/AppIcon';
 import { syncRules, syncTransition } from '../src/services/api';
 import { scanContacts } from '../src/services/contactsService';
@@ -191,15 +191,12 @@ export default function Dashboard() {
           </Card>
         </Section>
 
-        <Section title="Quick Actions">
-          <ResponsiveGrid minItemWidth={136} gap={12}>
-            <ActionTile title="Scan Contacts" text="Find old numbers" icon="scan" tone="primary" onPress={doScan} disabled={loading} />
-            <ActionTile title="Preview Changes" text="Select and migrate" icon="preview" tone="blue" onPress={() => openPreview('Needs Update')} />
-            <ActionTile title="Backups" text="Create or restore" icon="backup" tone="teal" onPress={() => router.push('/backup')} />
-            <ActionTile title="History" text="Past activity" icon="history" tone="violet" onPress={() => router.push('/history')} />
-            <ActionTile title="Remove Duplicates" text="Clean old numbers" icon="cleanup" tone="warning" onPress={() => router.push('/cleanup')} />
-            {!access?.paid ? <ActionTile title="Full unlock" text={`${access?.remaining ?? 10} free migrations left`} icon="premium" tone="gold" onPress={() => router.push('/payment')} /> : null}
-          </ResponsiveGrid>
+        <Section title="More tools">
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+            <Button title="Backups" icon="backup" variant="secondary" tone="teal" onPress={() => router.push('/backup')} style={{ flexGrow: 1, minWidth: 104 }} />
+            <Button title="History" icon="history" variant="secondary" tone="violet" onPress={() => router.push('/history')} style={{ flexGrow: 1, minWidth: 104 }} />
+            <Button title="Cleanup" icon="cleanup" variant="secondary" tone="warning" onPress={() => router.push('/cleanup')} style={{ flexGrow: 1, minWidth: 104 }} />
+          </View>
         </Section>
 
         <NoticeCard
@@ -209,8 +206,7 @@ export default function Dashboard() {
           icon={access?.paid ? 'check' : 'premium'}
         />
 
-        <View style={{ marginTop: 22 }} />
-        <NoticeCard title="Privacy assurance" text="Your contacts stay on your phone. Only migration rules are downloaded from the backend." tone="blue" icon="shield" />
+        <Text style={[styles.small, { textAlign: 'center', marginTop: 16 }]}>Your contacts stay on this phone. Only verified migration rules are downloaded.</Text>
       </ScrollView>
       <FixedBottomTabs />
       <Dialog />

@@ -40,4 +40,5 @@ export async function registerDevice(deviceId: string, info: Record<string, unkn
 export async function getDeviceStatus(deviceId: string) { const data = await request<{ data: any }>(`/devices/${encodeURIComponent(deviceId)}/status`); return data.data || data; }
 export async function consumeTrialAllowance(deviceId: string, count: number) { const data = await request<{ data: any }>(`/devices/${encodeURIComponent(deviceId)}/trial-increment`, { method: 'POST', body: JSON.stringify({ count }) }); return data.data || data; }
 export async function registerPushToken(deviceId: string, expoPushToken: string, platform: 'android' | 'ios') { return request('/notifications/register-token', { method: 'POST', body: JSON.stringify({ deviceId, expoPushToken, platform }) }); }
+export async function setNotificationPreference(deviceId: string, enabled: boolean) { return request('/notifications/preferences', { method: 'POST', body: JSON.stringify({ deviceId, enabled }) }); }
 export async function getNotifications(deviceId: string) { const data = await request<{ data: any[] }>(`/notifications?deviceId=${encodeURIComponent(deviceId)}`); return data.data; }

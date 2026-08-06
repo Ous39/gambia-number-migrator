@@ -37,10 +37,8 @@ export default function Complete() {
         {backupId ? <View style={{ marginTop: 12, padding: 12, borderRadius: 16, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.line }}><Text style={styles.small}>Backup created</Text><Text numberOfLines={1} ellipsizeMode="middle" style={{ color: colors.text, fontWeight: '800', marginTop: 3 }}>{backupId}</Text></View> : null}
       </Card>
       <Card style={{ marginTop: 14 }}>
-        <Text style={{ color: colors.text, fontWeight: '800', marginBottom: 10 }}>Mapping Guide</Text>
-        <GuideRow dot={colors.violet} label="QCell" value="83 XXXXXXX" />
-        <GuideRow dot={colors.blue} label="Comium" value="86 XXXXXXX" />
-        <GuideRow dot={colors.gold} label="Africell" value="87 XXXXXXX" />
+        <Text style={{ color: colors.text, fontWeight: '900', marginBottom: 6 }}>Your contacts are protected</Text>
+        <Text style={styles.body}>GNM used the verified rules saved on this device. A local safety backup was created before any contact was changed.</Text>
       </Card>
       <Button title="Back to Dashboard" icon="right" onPress={() => router.replace('/dashboard')} style={{ marginTop: 18 }} />
       <Button title="View Backups" variant="secondary" icon="backup" onPress={() => router.replace('/backup')} style={{ marginTop: 8 }} />
@@ -49,4 +47,3 @@ export default function Complete() {
   );
 }
 function SummaryTile({ label, value, color, soft }: { label: string; value: number; color: string; soft: string }) { const { styles } = useAppTheme(); return <View style={{ width: '48%', flexGrow: 1, minWidth: 125, padding: 14, borderRadius: 18, backgroundColor: soft }}><Text style={{ color, fontSize: 27, lineHeight: 32, fontWeight: '900' }}>{value.toLocaleString()}</Text><Text style={[styles.small, { color, marginTop: 2, fontWeight: '800' }]}>{label}</Text></View>; }
-function GuideRow({ dot, label, value }: { dot: string; label: string; value: string }) { const { colors, styles } = useAppTheme(); return <View style={[styles.rowBetween, { paddingVertical: 8 }]}><View style={[styles.row, { gap: 10 }]}><View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: dot }} /><Text style={{ color: colors.text, fontWeight: '700' }}>{label}</Text></View><Text style={{ color: colors.muted, fontWeight: '700' }}>{value}</Text></View>; }

@@ -3,7 +3,7 @@ import { api } from '../api/client';
 
 export default function Notifications() {
   const [items, setItems] = useState<any[]>([]);
-  const [form, setForm] = useState({ title: '', message: '', target: 'all' });
+  const [form, setForm] = useState({ title: '', message: '', target: 'all', audience: 'all' });
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
   const [previewPlatform, setPreviewPlatform] = useState<'android' | 'ios'>('android');
@@ -16,8 +16,13 @@ export default function Notifications() {
       setMessage(r.data.eligible_device_count === 0
         ? 'Notification saved, but no eligible registered devices were found. Open the installed app and allow notifications first.'
         : `Notification submitted to Expo Push. Accepted: ${r.data.sent_count}; failed immediately: ${r.data.failed_count}.`);
-      setForm({ title: '', message: '', target: 'all' }); await load();
+      setForm({ title: '', message: '', target: 'all', audience: 'all' }); await load();
     } catch (e: any) { setMessage(e.message); } finally { setSending(false); }
+  }
+  async function setEnabled(id: string, enabled: boolean) {
+    setMessage('');
+    try { await api(`/admin/notifications/${id}/enabled`, { method: 'PATCH', body: JSON.stringify({ enabled }) }); setMessage(enabled ? 'Notification enabled.' : 'Notification disabled and removed from the in-app audience feed. Already delivered phone alerts cannot be recalled.'); await load(); }
+    catch (e: any) { setMessage(e.message); }
   }
   const delivered = items.reduce((n, x) => n + Number(x.sent_count || 0), 0);
   const failed = items.reduce((n, x) => n + Number(x.failed_count || 0), 0);
@@ -26,9 +31,9 @@ export default function Notifications() {
     {message && <p className="notice" role="status">{message}</p>}
     <div className="grid ruleMetrics"><div className="metric"><span>Messages</span><strong>{items.length}</strong></div><div className="metric"><span>Push accepted</span><strong>{delivered}</strong></div><div className="metric"><span>Failed</span><strong>{failed}</strong></div></div>
     <div className="adminSplit">
-      <form className="card" onSubmit={submit}><h2>Create notification</h2><p>Keep the title short so Android can display it clearly.</p><div className="formGrid"><label>Title<input className="input" maxLength={80} required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /><small>{form.title.length}/80</small></label><label>Audience<select value={form.target} onChange={(e) => setForm({ ...form, target: e.target.value })}><option value="all">All devices</option><option value="android">Android only</option><option value="ios">iOS only</option></select></label></div><br /><label>Message<textarea rows={5} maxLength={500} required value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} /><small>{form.message.length}/500</small></label><div className="toolbar"><button className="btn" disabled={sending}>{sending ? 'Sending…' : 'Publish notification'}</button></div></form>
+      <form className="card" onSubmit={submit}><h2>Create notification</h2><p>Choose who should receive the message, then optionally limit it by phone platform.</p><label>Title<input className="input" maxLength={80} required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /><small>{form.title.length}/80</small></label><div className="formGrid" style={{marginTop:16}}><label>Audience<select value={form.audience} onChange={(e) => setForm({ ...form, audience: e.target.value })}><option value="all">All eligible users</option><option value="trial">Users using free trial</option><option value="subscribed">Subscribed users</option></select></label><label>Platform<select value={form.target} onChange={(e) => setForm({ ...form, target: e.target.value })}><option value="all">Android and iOS</option><option value="android">Android only</option><option value="ios">iOS only</option></select></label></div><br /><label>Message<textarea rows={5} maxLength={500} required value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} /><small>{form.message.length}/500</small></label><div className="toolbar"><button className="btn" disabled={sending}>{sending ? 'Sending…' : 'Publish notification'}</button></div></form>
       <div className="card notificationPreview"><div className="row" style={{justifyContent:'space-between'}}><h2>{previewPlatform === 'android' ? 'Android' : 'iOS'} preview</h2><div className="previewTabs"><button type="button" className={previewPlatform === 'android' ? 'active' : ''} onClick={() => setPreviewPlatform('android')}>Android</button><button type="button" className={previewPlatform === 'ios' ? 'active' : ''} onClick={() => setPreviewPlatform('ios')}>iOS</button></div></div><div className={`phoneNotification ${previewPlatform}`}><div className="notificationApp">Gambia Number Migrator <span>now</span></div><strong>{form.title || 'Notification title'}</strong><p>{form.message || 'Your notification message will appear here.'}</p></div><p><small>Final appearance depends on device settings. “Accepted” means Expo accepted the request, not that the user opened it.</small></p></div>
     </div>
-    <div className="card tableWrap"><h2>Notification history</h2><table><thead><tr><th>Sent</th><th>Title</th><th>Audience</th><th>Push sent</th><th>Failed</th><th>Status</th></tr></thead><tbody>{items.map((n) => <tr key={n.id}><td>{new Date(n.sent_at || n.created_at).toLocaleString()}</td><td><strong>{n.title}</strong><small className="cellNote">{n.message}</small></td><td>{n.target}</td><td>{n.sent_count}</td><td>{n.failed_count}</td><td><span className="badge">{n.status}</span></td></tr>)}</tbody></table>{!items.length && <p>No notifications sent yet.</p>}</div>
+    <div className="card tableWrap"><h2>Notification history</h2><table><thead><tr><th>Sent</th><th>Title</th><th>User audience</th><th>Platform</th><th>Push sent</th><th>Failed</th><th>Status</th><th>Control</th></tr></thead><tbody>{items.map((n) => <tr key={n.id}><td>{new Date(n.sent_at || n.created_at).toLocaleString()}</td><td><strong>{n.title}</strong><small className="cellNote">{n.message}</small></td><td>{n.audience || 'all'}</td><td>{n.target}</td><td>{n.sent_count}</td><td>{n.failed_count}</td><td><span className="badge">{n.enabled === false ? 'disabled' : n.status}</span></td><td><button type="button" className={`btn compact ${n.enabled === false ? 'secondary' : 'danger'}`} onClick={() => setEnabled(n.id, n.enabled === false)}>{n.enabled === false ? 'Enable' : 'Disable'}</button></td></tr>)}</tbody></table>{!items.length && <p>No notifications sent yet.</p>}</div>
   </>;
 }

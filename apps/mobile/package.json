@@ -1,6 +1,6 @@
 {
   "name": "@gnm/mobile",
-  "version": "2.8.0",
+  "version": "2.8.4",
   "private": true,
   "main": "expo-router/entry",
   "scripts": {

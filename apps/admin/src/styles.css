@@ -93,10 +93,14 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
 .metricCard:hover,.summaryCard:hover{transform:none}
 .btn:active,.heroButton:active,.themeToggle:active{opacity:.84}
 
-/* Fixed administration navbar: identity and session controls stay visible. */
-.adminWorkspace{min-width:0}
-.adminNavbar{position:sticky;top:0;z-index:70;min-height:72px;padding:12px clamp(22px,4vw,52px);display:flex;align-items:center;justify-content:space-between;gap:18px;background:color-mix(in srgb,var(--card) 92%,transparent);border-bottom:1px solid var(--line);backdrop-filter:blur(16px)}
-.navbarIdentity{display:flex;align-items:center;gap:11px;min-width:0}.navbarIdentity>div{width:42px;height:42px;border-radius:14px;display:grid;place-items:center;background:var(--primary-strong);color:#fff;font-weight:950}.navbarIdentity span{display:grid;min-width:0}.navbarIdentity b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.navbarIdentity small{color:var(--muted);text-transform:capitalize}
-.navbarActions{display:flex;align-items:center;gap:9px}.navbarButton{min-height:42px;padding:9px 13px;border:1px solid var(--line);border-radius:13px;background:var(--surface);color:var(--text);font-weight:850;display:inline-flex;align-items:center;gap:8px}.navbarButton:hover{border-color:var(--border)}.logoutButton{color:var(--danger)}
-@media(max-width:920px){.appShell{display:block}.sidebar{height:auto}.adminNavbar{top:120px}}
-@media(max-width:620px){.adminNavbar{top:120px;padding:10px 14px}.navbarIdentity b{max-width:130px}.navbarButton span{display:none}.navbarButton{width:42px;padding:0;justify-content:center}}
+/* v2.8.5 fixed admin navbar and responsive navigation */
+.adminWorkspace{min-width:0;min-height:100vh}
+.adminNavbar{height:76px;position:sticky;top:0;z-index:70;display:flex;align-items:center;justify-content:space-between;gap:18px;padding:0 clamp(20px,4vw,52px);background:color-mix(in srgb,var(--card) 92%,transparent);border-bottom:1px solid var(--line);backdrop-filter:blur(18px)}
+.navbarIdentity{display:flex;align-items:center;gap:11px;min-width:0}.navbarIdentity>div{width:38px;height:38px;flex:0 0 38px;border-radius:13px;display:grid;place-items:center;background:linear-gradient(135deg,#0b4fd7,#1769ff);color:#fff;font-weight:950}.navbarIdentity span{display:grid;min-width:0}.navbarIdentity b{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.navbarIdentity small{font-size:10px;color:var(--soft);margin-top:2px;text-transform:capitalize}.navbarActions{display:flex;align-items:center;gap:9px}.navbarButton,.mobileMenu,.mobileClose{min-height:40px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--text);padding:9px 12px;font-weight:850;display:inline-flex;align-items:center;justify-content:center;gap:8px}.navbarButton:hover{border-color:var(--border);background:var(--card)}.logoutButton{color:var(--danger)}.mobileMenu,.mobileClose{display:none}.menuBackdrop{display:none}.logo small{display:block;color:rgba(255,255,255,.62);font-size:10px;margin-top:3px}.sidebar{z-index:90}.main{padding-top:30px}
+@media(max-width:920px){
+  .appShell{display:block}.adminNavbar{height:68px;padding:0 16px}.mobileMenu{display:inline-flex}.navbarIdentity{margin-right:auto}.navbarButton span{display:none}.navbarButton{width:40px;padding:8px}
+  .sidebar{display:block;position:fixed;left:0;top:0;bottom:0;width:min(310px,88vw);height:100vh;transform:translateX(-105%);transition:transform 180ms cubic-bezier(.23,1,.32,1);box-shadow:24px 0 70px rgba(2,12,25,.42)}.sidebar.menuOpen{transform:translateX(0)}
+  .sidebar .logo{margin-bottom:28px}.sidebar .nav{display:grid;overflow:visible;padding:0}.sidebar .nav a{min-width:0}.sidebar .sideHelp{display:grid}.mobileClose{display:inline-flex;margin-left:auto;color:#fff;background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.16)}
+  .menuBackdrop{display:block;position:fixed;inset:0;z-index:85;border:0;background:rgba(2,12,25,.62);backdrop-filter:blur(3px)}.main{padding-top:24px}
+}
+@media(max-width:520px){.navbarIdentity span{max-width:135px}.adminNavbar{gap:8px}.navbarActions{gap:6px}.main{padding-left:14px;padding-right:14px}}

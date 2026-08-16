@@ -7,7 +7,6 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/admin/package.json apps/admin/package.json
 COPY packages/shared/package.json packages/shared/package.json
 RUN pnpm install --frozen-lockfile
-COPY tsconfig.base.json ./
 COPY packages/shared packages/shared
 COPY apps/admin apps/admin
 RUN pnpm --filter @gnm/shared build && pnpm --filter @gnm/admin build

@@ -1,0 +1,16 @@
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+node_modules
+**/node_modules
+**/dist
+**/.expo
+**/.cache
+**/coverage
+*.log
+*.zip
+*.apk
+*.aab
+.DS_Store

@@ -8,7 +8,7 @@
       "developmentClient": true,
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://gnmapi-production.up.railway.app/api",
+        "EXPO_PUBLIC_API_BASE_URL": "https://api.oceanbrown.gm/api",
         "EXPO_PUBLIC_DISTRIBUTION_CHANNEL": "direct",
         "EXPO_PUBLIC_EAS_PROJECT_ID": "2f1a4344-3c29-466d-a773-56355f9d4994"
       }
@@ -19,7 +19,7 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://gnmapi-production.up.railway.app/api",
+        "EXPO_PUBLIC_API_BASE_URL": "https://api.oceanbrown.gm/api",
         "EXPO_PUBLIC_DISTRIBUTION_CHANNEL": "direct",
         "EXPO_PUBLIC_EAS_PROJECT_ID": "2f1a4344-3c29-466d-a773-56355f9d4994",
         "EXPO_PUBLIC_SUPPORT_EMAIL": "info.oceanbrown@gmail.com",
@@ -30,7 +30,7 @@
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://gnmapi-production.up.railway.app/api",
+        "EXPO_PUBLIC_API_BASE_URL": "https://api.oceanbrown.gm/api",
         "EXPO_PUBLIC_DISTRIBUTION_CHANNEL": "store",
         "EXPO_PUBLIC_EAS_PROJECT_ID": "2f1a4344-3c29-466d-a773-56355f9d4994",
         "EXPO_PUBLIC_SUPPORT_EMAIL": "info.oceanbrown@gmail.com",

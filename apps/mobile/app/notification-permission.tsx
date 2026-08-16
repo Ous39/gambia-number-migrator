@@ -17,7 +17,7 @@ export default function NotificationPermission() {
     setLoading(true);
     try {
       if (allow) {
-        const result = await setupNotifications(true);
+        const result = await setupNotifications();
         if (!result.enabled) showDialog({ title: 'Notifications not enabled', message: result.reason || 'You can enable notifications later from Settings.', tone: 'warning', icon: 'warning' });
       }
       await setJson(keys.onboarded, true);

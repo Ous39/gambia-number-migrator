@@ -30,7 +30,7 @@ export default function SupportDevices() {
           <td><strong>{x.supportCode}</strong></td>
           <td>{x.deviceName || x.deviceModel || 'Unknown'}<small className="cellNote">{x.platform || 'unknown platform'}</small></td>
           <td>{x.appVersion || 'Unknown app'}<small className="cellNote">{x.osName || x.platform} {x.osVersion}</small></td>
-          <td><span className="badge">{x.status}</span><small className="cellNote">Trial used: {x.trialContactsUsed || 0}</small></td>
+          <td><span className="badge">{x.status}</span><small className="cellNote">Access: {x.accessSource || 'trial'}<br />Trial used: {x.trialContactsUsed || 0}</small></td>
           <td>{x.paymentStatus ? <><strong>{x.paymentStatus}</strong><small className="cellNote">{x.paymentProvider} · {x.paymentAmount} {x.paymentCurrency}<br />{x.paymentReference}</small></> : 'No payment'}</td>
           <td>{x.lastIp || 'Unavailable'}<small className="cellNote">{new Date(x.updatedAt).toLocaleString()}</small></td>
           <td><div className="actionStack">{x.paymentStatus === 'success' && x.status !== 'active' && x.status !== 'blocked' ? <button className="btn" onClick={() => restorePaidAccess(x.id)}>Restore access</button> : null}{x.status === 'blocked' ? <button className="btn secondary" onClick={() => changeStatus(x.id, 'unblock')}>Unblock</button> : <button className="btn danger" onClick={() => changeStatus(x.id, 'block')}>Block</button>}</div></td>

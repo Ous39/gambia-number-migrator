@@ -8,6 +8,7 @@ import { getDeviceFingerprint, getDeviceInfo } from '../src/services/deviceServi
 import { getTone, radius, type Tone, useAppTheme } from '../src/appTheme';
 import { AppIcon } from '../src/components/AppIcon';
 import { getAccessStatus } from '../src/services/unlockService';
+import PaymentCheckout from './payment-checkout';
 
 type Provider = 'wave' | 'aps';
 
@@ -19,7 +20,7 @@ const providers: { key: Provider; title: string; subtitle: string; icon: string;
 
 export default function Payment() {
   if (process.env.EXPO_PUBLIC_DISTRIBUTION_CHANNEL === 'store') return <StorePaymentNotice />;
-  return <DirectPayment />;
+  return <PaymentCheckout />;
 }
 
 function StorePaymentNotice() {

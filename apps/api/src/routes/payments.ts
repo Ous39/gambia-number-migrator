@@ -39,6 +39,7 @@ async function markDevicePaymentState(deviceId: string, status: 'pending_payment
   await query(
     `INSERT INTO devices (id, status, subscribed_at) VALUES ($1,$2,CASE WHEN $2::text='active' THEN NOW() ELSE NULL END)
      ON CONFLICT (id) DO UPDATE SET status=CASE WHEN devices.status='blocked' THEN devices.status ELSE EXCLUDED.status END,
+     access_source=CASE WHEN devices.status='blocked' THEN devices.access_source WHEN EXCLUDED.status='active' THEN 'paid' ELSE devices.access_source END,
      subscribed_at=CASE WHEN EXCLUDED.status='active' THEN NOW() ELSE devices.subscribed_at END, updated_at=NOW()`,
     [deviceId, status]
   );
@@ -62,6 +63,8 @@ paymentsRouter.post('/payments/create-intent', async (req, res, next) => {
     const b = paymentIntentSchema.parse(req.body);
     const configured = await query("SELECT config_value FROM app_config WHERE config_key='subscription_price' LIMIT 1");
     const requiredAmount = Number(configured.rows[0]?.config_value ?? 100);
+    const device = await query('SELECT status,access_source FROM devices WHERE id=$1 LIMIT 1', [b.deviceId]);
+    if (device.rows[0]?.status === 'active') return res.status(409).json({ message: 'This device already has full access. No payment is required.' });
     if (b.amount !== requiredAmount || b.currency !== 'GMD') return res.status(400).json({ message: `Payment amount must be D${requiredAmount} GMD` });
     const existing = await query(
       'SELECT * FROM payments WHERE device_id=$1 AND idempotency_key=$2 LIMIT 1',
@@ -146,6 +149,7 @@ for (const provider of ['wave', 'aps'] as const) {
           await client.query(
             `INSERT INTO devices(id,status,subscribed_at) VALUES($1,'active',NOW())
              ON CONFLICT(id) DO UPDATE SET status=CASE WHEN devices.status='blocked' THEN devices.status ELSE 'active' END,
+             access_source=CASE WHEN devices.status='blocked' THEN devices.access_source ELSE 'paid' END,
              subscribed_at=NOW(),updated_at=NOW()`,
             [updated.rows[0].device_id]
           );

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { query } from '../db/pool';
+import { query, withTransaction } from '../db/pool';
 import { requireAdmin } from '../middleware/auth';
 import { audit } from '../services/auditService';
 import crypto from 'node:crypto';
@@ -33,6 +33,8 @@ function publicDevice(row: any, extra: Record<string, unknown> = {}) {
     subscribedAt: row.subscribed_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    accessSource: row.access_source || (row.status === 'active' ? 'paid' : 'trial'),
+    promotionalAccessGrantedAt: row.promotional_access_granted_at || null,
     supportCode: `GNM-${crypto.createHash('sha256').update(String(row.id)).digest('hex').slice(0, 8).toUpperCase()}`,
     ...extra
   };
@@ -47,7 +49,9 @@ devicesRouter.post('/devices/register', async (req, res, next) => {
     const b = registerSchema.parse(req.body);
     const ip = String(req.ip || req.socket.remoteAddress || '').replace(/^::ffff:/, '').slice(0, 64);
 
-    const result = await query(
+    const result = await withTransaction(async (client) => {
+      await client.query("SELECT pg_advisory_xact_lock(hashtext('gnm-free-access-campaign'))");
+      const saved = await client.query(
       `INSERT INTO devices (id, device_name, device_model, os_name, os_version, platform, last_ip, app_version)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
        ON CONFLICT (id) DO UPDATE SET
@@ -61,12 +65,29 @@ devicesRouter.post('/devices/register', async (req, res, next) => {
          updated_at=NOW()
        RETURNING *`,
       [b.fingerprint, b.deviceName || null, b.deviceModel || null, b.osName || null, b.osVersion || null, b.platform || null, ip, b.appVersion || null]
-    );
+      );
+      const configRows = await client.query("SELECT config_key,config_value FROM app_config WHERE config_key IN ('free_access_mode','free_access_user_limit')");
+      const campaign = Object.fromEntries(configRows.rows.map((row) => [row.config_key, row.config_value]));
+      const mode = String(campaign.free_access_mode || 'off');
+      const limit = Math.max(1, Number(campaign.free_access_user_limit || 100));
+      const device = saved.rows[0];
+      if (!['active','blocked'].includes(device.status) && device.access_source !== 'campaign') {
+        const campaignCount = Number((await client.query("SELECT COUNT(*)::int AS count FROM devices WHERE access_source='campaign'")).rows[0]?.count || 0);
+        if (mode === 'all' || (mode === 'first_n' && campaignCount < limit)) {
+          const granted = await client.query("UPDATE devices SET status='active',access_source='campaign',promotional_access_granted_at=COALESCE(promotional_access_granted_at,NOW()),updated_at=NOW() WHERE id=$1 RETURNING *", [b.fingerprint]);
+          return granted.rows[0];
+        }
+      }
+      return device;
+    });
 
     const freeTrialLimit = Number(await getConfigValue('free_trial_limit', 0));
     const subscriptionPrice = Number(await getConfigValue('subscription_price', 100));
     const currency = await getConfigValue('currency', 'GMD');
-    res.json({ data: publicDevice(result.rows[0], { freeTrialLimit, subscriptionPrice, currency }) });
+    const freeAccessMode = String(await getConfigValue('free_access_mode', 'off'));
+    const freeAccessUserLimit = Number(await getConfigValue('free_access_user_limit', 100));
+    res.set('Cache-Control', 'no-store');
+    res.json({ data: publicDevice(result, { freeTrialLimit, subscriptionPrice, currency, freeAccessMode, freeAccessUserLimit }) });
   } catch (e) {
     next(e);
   }
@@ -77,7 +98,10 @@ devicesRouter.get('/devices/:fingerprint/status', async (req, res, next) => {
     const r = await query('SELECT * FROM devices WHERE id=$1 LIMIT 1', [req.params.fingerprint]);
     if (!r.rowCount) return res.status(404).json({ message: 'Device not registered' });
     const freeTrialLimit = Number(await getConfigValue('free_trial_limit', 0));
-    res.json({ data: publicDevice(r.rows[0], { freeTrialLimit }) });
+    const subscriptionPrice = Number(await getConfigValue('subscription_price', 100));
+    const currency = await getConfigValue('currency', 'GMD');
+    res.set('Cache-Control', 'no-store');
+    res.json({ data: publicDevice(r.rows[0], { freeTrialLimit, subscriptionPrice, currency }) });
   } catch (e) {
     next(e);
   }
@@ -130,7 +154,7 @@ devicesRouter.get('/admin/devices', requireAdmin, async (_req, res, next) => {
 
 devicesRouter.post('/admin/devices/:id/block', requireAdmin, async (req, res, next) => {
   try {
-    const r = await query("UPDATE devices SET status='blocked', updated_at=NOW() WHERE id=$1 RETURNING *", [req.params.id]);
+    const r = await query("UPDATE devices SET status='blocked',access_source='blocked', updated_at=NOW() WHERE id=$1 RETURNING *", [req.params.id]);
     await audit(req, 'device_blocked', 'device', String(req.params.id), null, r.rows[0]);
     res.json({ data: r.rows[0] ? publicDevice(r.rows[0]) : null });
   } catch (e) {
@@ -140,7 +164,7 @@ devicesRouter.post('/admin/devices/:id/block', requireAdmin, async (req, res, ne
 
 devicesRouter.post('/admin/devices/:id/unblock', requireAdmin, async (req, res, next) => {
   try {
-    const r = await query("UPDATE devices SET status='trial', updated_at=NOW() WHERE id=$1 RETURNING *", [req.params.id]);
+    const r = await query("UPDATE devices SET status='trial',access_source='trial', updated_at=NOW() WHERE id=$1 RETURNING *", [req.params.id]);
     await audit(req, 'device_unblocked', 'device', String(req.params.id), null, r.rows[0]);
     res.json({ data: r.rows[0] ? publicDevice(r.rows[0]) : null });
   } catch (e) {
@@ -153,7 +177,7 @@ devicesRouter.post('/admin/devices/:id/restore-paid-access', requireAdmin, async
     const payment = await query("SELECT reference FROM payments WHERE device_id=$1 AND status='success' ORDER BY paid_at DESC NULLS LAST, created_at DESC LIMIT 1", [req.params.id]);
     if (!payment.rowCount) return res.status(409).json({ message: 'Paid access cannot be restored because no successful payment exists for this device.' });
     const before = await query('SELECT * FROM devices WHERE id=$1', [req.params.id]);
-    const r = await query("UPDATE devices SET status='active', subscribed_at=COALESCE(subscribed_at,NOW()), updated_at=NOW() WHERE id=$1 AND status<>'blocked' RETURNING *", [req.params.id]);
+    const r = await query("UPDATE devices SET status='active',access_source='paid', subscribed_at=COALESCE(subscribed_at,NOW()), updated_at=NOW() WHERE id=$1 AND status<>'blocked' RETURNING *", [req.params.id]);
     if (!r.rowCount) return res.status(409).json({ message: 'Unblock this device before restoring paid access.' });
     await audit(req, 'paid_access_restored', 'device', String(req.params.id), before.rows[0], { ...r.rows[0], paymentReference: payment.rows[0].reference });
     res.json({ data: publicDevice(r.rows[0], { paymentReference: payment.rows[0].reference }) });

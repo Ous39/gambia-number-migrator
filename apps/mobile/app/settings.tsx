@@ -7,29 +7,17 @@ import { getJson, keys } from '../src/services/storage';
 import { getApiBaseUrl, registerDevice, syncConfig } from '../src/services/api';
 import { getDeviceFingerprint, getDeviceInfo } from '../src/services/deviceService';
 import { type ThemeMode, useAppTheme } from '../src/appTheme';
-import { disableNotifications, getNotificationStatus, setupNotifications } from '../src/services/notificationService';
 
 export default function Settings() {
   const { colors, styles, mode, setMode, resolvedMode } = useAppTheme();
   const { showDialog, Dialog } = useAppDialog();
   const [config, setConfig] = useState<Record<string, unknown>>({});
   const [diagnostics, setDiagnostics] = useState<any>(null);
-  const [notificationStatus, setNotificationStatus] = useState<any>(null);
-  const [notificationBusy, setNotificationBusy] = useState(false);
 
   useEffect(() => {
     syncConfig().then(setConfig).catch(() => undefined);
     getDeviceFingerprint().then((id) => registerDevice(id, getDeviceInfo())).then(setDiagnostics).catch(() => undefined);
-    getNotificationStatus().then(setNotificationStatus).catch(() => undefined);
   }, []);
-
-  async function updateNotifications(enabled: boolean) {
-    setNotificationBusy(true);
-    const result = enabled ? await setupNotifications() : await disableNotifications();
-    setNotificationStatus(result);
-    setNotificationBusy(false);
-    if (enabled && !result.enabled) showDialog({ title: 'Notifications not enabled', message: result.reason || 'Check your phone settings and try again.', tone: 'warning', icon: 'warning' });
-  }
 
   const supportEmail = String(config.support_email || process.env.EXPO_PUBLIC_SUPPORT_EMAIL || '');
   const supportWhatsApp = String(config.support_whatsapp || process.env.EXPO_PUBLIC_SUPPORT_WHATSAPP || '');
@@ -78,7 +66,7 @@ export default function Settings() {
   return (
     <Screen>
       <BackHeader title="Settings" subtitle="Appearance, privacy, support, and app information." />
-      <NoticeCard title="Privacy-first by design" text="Contacts are processed locally on your phone. No contact names or phonebook data are uploaded." tone="primary" icon="lock" />
+      <View style={{ marginTop: 14 }}><NoticeCard title="Privacy-first by design" text="Contacts are processed locally on your phone. No contact names or phonebook data are uploaded." tone="primary" icon="lock" /></View>
 
       <Section title="Appearance">
         <Card style={{ gap: 16 }}>
@@ -101,27 +89,6 @@ export default function Settings() {
         </Card>
       </Section>
 
-      <Section title="Notifications">
-        <Card style={{ gap: 14 }}>
-          <View style={styles.rowBetween}>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={{ color: colors.text, fontWeight: '900', fontSize: 17 }}>App notifications</Text>
-              <Text style={styles.body}>{notificationStatus?.enabled ? 'On · Important migration and service alerts' : notificationStatus?.reason || 'Off'}</Text>
-            </View>
-            <View style={{ width: 48, height: 48, borderRadius: 18, backgroundColor: notificationStatus?.enabled ? colors.successSoft : colors.surface2, alignItems: 'center', justifyContent: 'center' }}>
-              <AppIcon name="notification" color={notificationStatus?.enabled ? colors.success : colors.muted} size={22} />
-            </View>
-          </View>
-          {notificationStatus?.enabled ? (
-            <Button title="Turn Off Notifications" variant="secondary" tone="danger" icon="notification" loading={notificationBusy} disabled={notificationBusy} onPress={() => updateNotifications(false)} />
-          ) : (
-            <Button title="Allow Notifications" icon="notification" loading={notificationBusy} disabled={notificationBusy} onPress={() => updateNotifications(true)} />
-          )}
-          <Button title="Open Phone Notification Settings" variant="secondary" tone="blue" icon="settings" onPress={() => Linking.openSettings()} />
-        </Card>
-        <NoticeCard title="You are in control" text="The app asks only when you tap Allow Notifications. You can change the permission anytime in your phone settings." tone="blue" icon="shield" />
-      </Section>
-
       <Section title="Privacy & Security">
         <Card>
           <InfoRow label="Contact processing" value="On device" icon="phone" />
@@ -129,7 +96,7 @@ export default function Settings() {
           <InfoRow label="Payment privacy" value="Device reference only" icon="card" />
           <InfoRow label="Tracking" value="Off by default" icon="shield" />
         </Card>
-        <NoticeCard title="Support diagnostics" text="For payment recovery and technical support, the server records a device reference, model, operating system, app version, payment status, last active time and last-seen IP address. Contacts and phone numbers are never included." tone="blue" icon="info" />
+        <View style={{ marginTop: 12 }}><NoticeCard title="Support diagnostics" text="For payment recovery and technical support, the server records a device reference, model, operating system, app version, payment status, last active time and last-seen IP address. Contacts and phone numbers are never included." tone="blue" icon="info" /></View>
       </Section>
 
       <Section title="Migration Preferences">
@@ -154,12 +121,12 @@ export default function Settings() {
           <SupportAction title="Privacy Policy" text="How we protect your data" icon="shield" onPress={() => openSupport('privacy')} />
           <SupportAction title="Terms of Use" text="Rules for using this service" icon="document" onPress={() => openSupport('terms')} />
         </Card>
-        <NoticeCard title="Never share payment PINs" text="Support will never ask for your Wave/APS PIN, OTP, password, or full contact list." tone="warning" icon="shield" />
+        <View style={{ marginTop: 12 }}><NoticeCard title="Never share payment PINs" text="Support will never ask for your Wave/APS PIN, OTP, password, or full contact list." tone="warning" icon="shield" /></View>
       </Section>
 
       <Section title="About">
         <Card style={{ gap: 14 }}>
-          <InfoRow label="Version" value="2.8.3 Production" icon="info" />
+          <InfoRow label="Version" value="2.8.8 Production" icon="info" />
           <InfoRow label="Rules" value="Admin published" icon="settings" />
           <Text style={[styles.small, { marginTop: 2 }]}>Proudly made for The Gambia · Powered by OceanBrown</Text>
           <Button title="Show Diagnostics" variant="secondary" tone="blue" icon="info" onPress={showDebug} />

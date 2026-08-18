@@ -60,15 +60,15 @@ export default function Cleanup() {
   const topHeader = <BackHeader title="Remove Old Duplicates" subtitle="Clean old numbers only after safe verification." />;
   const header = (
     <>
-      <NoticeCard title="Safety rule" text="The app never removes an old number unless the matching new number exists in the same contact and the pair is verified by the rules engine." tone="warning" icon="warning" />
+      <View style={{ marginBottom: 12 }}><NoticeCard title="Safety rule" text="The app never removes an old number unless the matching new number exists in the same contact and the pair is verified by the rules engine." tone="warning" icon="warning" /></View>
       <SearchBox value={q} onChangeText={setQ} placeholder="Search contact or number" />
-      <View style={[styles.rowBetween, { marginVertical: 14 }]}> 
+      <View style={[styles.rowBetween, { marginTop: 12, marginBottom: 10 }]}> 
         <Text style={styles.body}><Text style={{ color: colors.text, fontWeight: '800' }}>{selectedItems.length}</Text> selected · {filtered.length} shown</Text>
         <View style={[styles.row, { gap: 8 }]}><TouchableOpacity onPress={() => setVisible(true)}><Text style={{ color: colors.primary, fontWeight: '800' }}>All</Text></TouchableOpacity><Text style={{ color: colors.softText }}>/</Text><TouchableOpacity onPress={() => setVisible(false)}><Text style={{ color: colors.softText, fontWeight: '800' }}>None</Text></TouchableOpacity></View>
       </View>
     </>
   );
-  const footer = <Card style={{ marginTop: 10 }}><Button title={`Remove Selected (${selectedItems.length})`} loading={busy} disabled={busy || !selectedItems.length} variant="danger" icon="cleanup" onPress={confirm} /></Card>;
+  const footer = <Card style={{ marginTop: 6 }}><Button title={`Remove Selected (${selectedItems.length})`} loading={busy} disabled={busy || !selectedItems.length} variant="danger" icon="cleanup" onPress={confirm} /></Card>;
 
   return <>
     <ListScreen data={filtered} keyExtractor={(item) => cleanupKey(item)} topHeader={topHeader} header={header} footer={footer} empty={loading ? <Card><Text style={styles.body}>Loading cleanup results...</Text></Card> : <EmptyState icon="cleanup" title={scan ? 'No safe duplicate pairs' : 'Scan required'} text={scan ? 'No verified old/new pairs match this search.' : 'Scan your contacts first. Only verified old/new pairs will appear here.'} />} renderItem={({ item }) => {

@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "2f1a4344-3c29-466d-a773-56355f9d4994"
+      }
+    },
+    "android": {
+      "package": "com.ousjallow39.gambianumbermigrator"
+    }
+  }
+}

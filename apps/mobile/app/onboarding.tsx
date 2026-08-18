@@ -47,7 +47,7 @@ export default function Onboarding() {
       if (requestPermission) showDialog({ title: 'Contacts permission', message: e?.message || 'You can allow contacts access later from the dashboard.', tone: 'warning', icon: 'warning' });
     }
     await setJson(keys.onboarded, true);
-    router.replace('/dashboard');
+    router.replace('/notification-permission');
   }
 
   function next() {

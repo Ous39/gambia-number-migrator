@@ -6,6 +6,8 @@ export const FALLBACK_APP_CONFIG = {
   allowedPaymentProviders: ['wave', 'aps'],
   defaultPaymentAmount: 100,
   subscription_price: 100,
+  free_access_mode: 'off',
+  free_access_user_limit: 100,
   currency: 'GMD',
   contactUploadAllowed: false,
   privacyMode: 'local_contacts_only',

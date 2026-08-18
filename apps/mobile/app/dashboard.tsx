@@ -124,9 +124,9 @@ export default function Dashboard() {
         keyboardShouldPersistTaps="handled"
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.primary} />}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[styles.scrollContent, { paddingHorizontal: r.horizontalPadding, paddingTop: 14, paddingBottom: 138 + insets.bottom, width: '100%', maxWidth: r.maxWidth as any, alignSelf: 'center' }]}
+        contentContainerStyle={[styles.scrollContent, { paddingHorizontal: r.horizontalPadding, paddingTop: 12, paddingBottom: 126 + insets.bottom, width: '100%', maxWidth: r.maxWidth as any, alignSelf: 'center' }]}
       >
-        <Card elevated style={{ padding: r.compact ? 18 : 22, marginBottom: 14, overflow: 'hidden', backgroundColor: colors.brandTop, borderColor: colors.brandMid }}>
+        <Card elevated style={{ padding: r.compact ? 16 : 20, marginBottom: 12, overflow: 'hidden', backgroundColor: colors.brandTop, borderColor: colors.brandMid }}>
           <View style={{ position: 'absolute', right: -58, top: -68, width: 190, height: 190, borderRadius: 95, backgroundColor: colors.brandBubble }} />
           <View style={[styles.rowBetween, { gap: 14, alignItems: 'flex-start' }]}> 
             <View style={{ flex: 1, minWidth: 0 }}>
@@ -145,7 +145,7 @@ export default function Dashboard() {
           </View>
         </Card>
 
-        <View style={{ flexDirection: r.contentWidth > 340 ? 'row' : 'column', gap: 10, marginBottom: 16 }}>
+        <View style={{ flexDirection: r.contentWidth > 340 ? 'row' : 'column', gap: 10, marginBottom: 14 }}>
           <Button title={loading ? 'Scanning...' : 'Scan Contacts'} icon="scan" loading={loading} disabled={loading} onPress={doScan} style={{ flex: 1, minHeight: 56, borderRadius: 18 }} />
           <Button title="Preview" icon="preview" variant="secondary" tone="blue" onPress={() => openPreview('Needs Update')} style={{ flex: 1, minHeight: 56, borderRadius: 18 }} />
         </View>
@@ -206,7 +206,7 @@ export default function Dashboard() {
           icon={access?.paid ? 'check' : 'premium'}
         />
 
-        <Text style={[styles.small, { textAlign: 'center', marginTop: 16 }]}>Your contacts stay on this phone. Only verified migration rules are downloaded.</Text>
+        <Text style={[styles.small, { textAlign: 'center', marginTop: 14 }]}>Your contacts stay on this phone. Only verified migration rules are downloaded.</Text>
       </ScrollView>
       <FixedBottomTabs />
       <Dialog />

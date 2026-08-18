@@ -21,7 +21,7 @@ export function getApiBaseUrl(): string {
 async function safeJson(res: Response) { try { return await res.json(); } catch { return {}; } }
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   try {
-    const res = await fetch(`${getApiBaseUrl()}${path}`, { ...options, headers: { 'Content-Type': 'application/json', ...(options.headers || {}) } });
+    const res = await fetch(`${getApiBaseUrl()}${path}`, { cache: 'no-store', ...options, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache', ...(options.headers || {}) } });
     const data = await safeJson(res);
     if (!res.ok) throw new Error((data as any).message || (data as any).error || `Request failed (${res.status})`);
     return data as T;
@@ -33,6 +33,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 export async function syncRules(): Promise<PublishedRulesPayload> { try { const r = await request<{ data: PublishedRulesPayload }>('/migration-rules'); await setJson(keys.rules, r.data); return r.data; } catch { return getJson(keys.rules, DEFAULT_RULES_PAYLOAD); } }
 export async function syncTransition(): Promise<TransitionSettings> { try { const r = await request<{ data: TransitionSettings }>('/transition-settings'); await setJson(keys.transition, r.data); return r.data; } catch { return getJson(keys.transition, DEFAULT_TRANSITION_SETTINGS); } }
 export async function syncConfig(): Promise<Record<string, unknown>> { try { const r = await request<{ data: Record<string, unknown> }>('/app-config'); await setJson(keys.config, r.data); return r.data; } catch { return getJson(keys.config, {}); } }
+export async function getLiveConfig(): Promise<Record<string, unknown>> { const r = await request<{ data: Record<string, unknown> }>(`/app-config?fresh=${Date.now()}`); await setJson(keys.config, r.data); return r.data; }
 export async function createPaymentIntent(body: any) { const data = await request<{ data: any }>('/payments/create-intent', { method: 'POST', body: JSON.stringify(body) }); return data.data; }
 export async function verifyPaymentOtp(reference: string, otp: string) { const data = await request<{ data: any }>('/payments/verify-otp', { method: 'POST', body: JSON.stringify({ reference, otp }) }); return data.data; }
 export async function getPaymentStatus(reference: string) { const data = await request<{ data: any }>(`/payments/${reference}/status`); return data.data; }

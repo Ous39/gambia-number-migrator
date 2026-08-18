@@ -12,8 +12,13 @@ export default function Splash() {
     const timer = setTimeout(() => {
       (async () => {
         await Promise.allSettled([syncRules(), syncTransition(), syncConfig()]);
-        const onboarded = await getJson(keys.onboarded, false);
-        router.replace(onboarded ? '/dashboard' : '/onboarding');
+        const [onboarded, notificationPermissionPrompted] = await Promise.all([
+          getJson(keys.onboarded, false),
+          getJson(keys.notificationPermissionPrompted, false),
+        ]);
+        if (!onboarded) router.replace('/onboarding');
+        else if (!notificationPermissionPrompted) router.replace('/notification-permission');
+        else router.replace('/dashboard');
       })();
     }, 150);
     return () => clearTimeout(timer);

@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Keyboard, KeyboardAvoidingView, Platform, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useCallback } from 'react';
 import { Button } from '../src/components/Button';
 import { BackHeader, Card, NoticeCard, Pill, Screen, Section, useAppDialog } from '../src/components/UI';
-import { createPaymentIntent, syncConfig, verifyPaymentOtp } from '../src/services/api';
+import { createPaymentIntent, getLiveConfig, verifyPaymentOtp } from '../src/services/api';
 import { getDeviceFingerprint } from '../src/services/deviceService';
-import { markFeatureUnlocked, PREMIUM_FEATURES } from '../src/services/unlockService';
+import { getAccessStatus, markFeatureUnlocked, PREMIUM_FEATURES, type AccessStatus } from '../src/services/unlockService';
 import { getTone, radius, type Tone, useAppTheme } from '../src/appTheme';
 import { AppIcon } from '../src/components/AppIcon';
 
@@ -52,8 +53,10 @@ export default function PaymentCheckout() {
   const { colors, styles } = useAppTheme();
   const { showDialog, Dialog } = useAppDialog();
   const params = useLocalSearchParams<{ provider?: string; amount?: string }>();
-  const provider: Provider = params.provider === 'aps' ? 'aps' : 'wave';
+  const [provider, setProvider] = useState<Provider>(params.provider === 'aps' ? 'aps' : 'wave');
   const [amount, setAmount] = useState(Number(params.amount || 100) || 100);
+  const [access, setAccess] = useState<AccessStatus | null>(null);
+  const [priceLoading, setPriceLoading] = useState(true);
   const meta = providerMeta[provider];
   const tone = getTone(colors, meta.tone);
   const [phone, setPhone] = useState('');
@@ -84,12 +87,19 @@ export default function PaymentCheckout() {
     setStep('phone');
   }, [provider]);
 
-  useEffect(() => {
-    syncConfig().then((config) => {
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    setPriceLoading(true);
+    Promise.all([getLiveConfig(), getAccessStatus()]).then(([config, status]) => {
+      if (!active) return;
       const current = Number(config.subscription_price);
       if (Number.isFinite(current) && current > 0) setAmount(current);
-    }).catch(() => undefined);
-  }, []);
+      setAccess(status);
+    }).catch((error) => {
+      if (active) showDialog({ title: 'Could not load live price', message: error?.message || 'Connect to the internet and try again. Payment is disabled until the current price is confirmed.', tone: 'warning', icon: 'warning' });
+    }).finally(() => { if (active) setPriceLoading(false); });
+    return () => { active = false; };
+  }, []));
 
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
@@ -103,6 +113,9 @@ export default function PaymentCheckout() {
   }, []);
 
   async function sendOtp() {
+    if (priceLoading) return;
+    const latest = await getAccessStatus();
+    if (latest.status === 'active') { setAccess(latest); return; }
     if (!canPay) {
       showDialog({ title: 'Invalid phone number', message: 'Enter exactly 7 digits or exactly 9 digits. More than 9 digits is not allowed.', tone: 'warning', icon: 'warning' });
       return;
@@ -143,19 +156,31 @@ export default function PaymentCheckout() {
   const maskedPhone = useMemo(() => phone ? phone.replace(/(\d{3})\d+(\d{2})$/, '$1****$2') : 'Not entered', [phone]);
   const phoneMessage = inputNote || phoneValidationMessage(phone);
 
+  if (access?.status === 'active') return (
+    <Screen scroll={false}>
+      <BackHeader title="Full access" compact />
+      <Card elevated style={{ alignItems: 'center', gap: 14, padding: 24, marginTop: 24 }}>
+        <View style={{ width: 92, height: 92, borderRadius: 46, backgroundColor: colors.successSoft, alignItems: 'center', justifyContent: 'center' }}><AppIcon name="check" color={colors.success} size={42} /></View>
+        <Pill text={access.promotional ? 'FREE LAUNCH ACCESS' : 'ACCESS ACTIVE'} tone="success" />
+        <Text style={{ color: colors.text, fontSize: 28, fontWeight: '900', textAlign: 'center' }}>{access.promotional ? 'Your access is free' : 'Already unlocked'}</Text>
+        <Text style={[styles.body, { textAlign: 'center' }]}>{access.promotional ? 'You received a promotional place. No payment is required on this device.' : 'Your full Contact Migration Pass is active on this device.'}</Text>
+        <Button title="Continue to Dashboard" icon="right" onPress={() => router.replace('/dashboard')} style={{ width: '100%', minHeight: 58 }} />
+      </Card>
+    </Screen>
+  );
+
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={0}
     >
-    <Screen stickyTop={!keyboardVisible}>
-      <BackHeader title={`${meta.title} Checkout`} subtitle="Phone number and OTP confirmation." compact />
+    <Screen scroll={step !== 'phone'} stickyTop={!keyboardVisible}>
+      <BackHeader title="Payment" compact />
 
       {!keyboardVisible ? (
         <>
-          <PaymentHero provider={meta.title} amount={amount} icon={meta.icon} tone={meta.tone} />
-          <StepTracker step={step} />
+          <PaymentHero amount={amount} />
         </>
       ) : (
         <View style={{ marginTop: 8, paddingHorizontal: 4 }}>
@@ -164,24 +189,58 @@ export default function PaymentCheckout() {
       )}
 
       {step !== 'success' ? (
-        <Section title={step === 'phone' ? 'Enter payment number' : 'Confirm payment OTP'} style={{ marginTop: 16 }}>
-          <Card elevated style={{ gap: 16, padding: 18 }}>
-            <View style={[styles.rowBetween, { gap: 12, alignItems: 'flex-start' }]}> 
+        <Section title={step === 'phone' ? undefined : 'Confirm payment OTP'} style={{ marginTop: step === 'phone' ? 0 : 12 }}>
+          <Card elevated style={{ gap: step === 'phone' ? 12 : 16, padding: step === 'phone' ? 14 : 18, borderRadius: 28 }}>
+            {step === 'phone' ? (
+              <View>
+                <Text style={{ color: colors.text, fontSize: 16, fontWeight: '900', marginBottom: 10 }}>Choose payment provider</Text>
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  {(['wave', 'aps'] as Provider[]).map((item) => {
+                    const itemMeta = providerMeta[item];
+                    const itemTone = getTone(colors, itemMeta.tone);
+                    const active = provider === item;
+                    return (
+                      <TouchableOpacity
+                        key={item}
+                        activeOpacity={0.84}
+                        onPress={() => setProvider(item)}
+                        style={{
+                          flex: 1,
+                          minHeight: 92,
+                          borderRadius: 20,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          backgroundColor: active ? itemTone.bg : colors.card,
+                          borderWidth: active ? 2 : 1,
+                          borderColor: active ? itemTone.fg : colors.border,
+                        }}
+                      >
+                        {active ? <View style={{ position: 'absolute', right: 8, top: 8, width: 24, height: 24, borderRadius: 12, backgroundColor: itemTone.fg, alignItems: 'center', justifyContent: 'center' }}><AppIcon name="check" color={colors.white} size={14} /></View> : null}
+                        <View style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: itemTone.fg, alignItems: 'center', justifyContent: 'center' }}>
+                          {item === 'aps' ? <Text style={{ color: colors.white, fontWeight: '900', fontSize: 15 }}>APS</Text> : <AppIcon name="phone" color={colors.white} size={20} />}
+                        </View>
+                        <Text style={{ color: colors.text, fontSize: 16, fontWeight: '900', marginTop: 6 }}>{itemMeta.title}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            ) : <View style={[styles.rowBetween, { gap: 12, alignItems: 'flex-start' }]}> 
               <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={{ color: colors.text, fontSize: 19, lineHeight: 25, fontWeight: '900' }}>{step === 'phone' ? `${meta.title} payment details` : 'Verify your payment'}</Text>
-                <Text style={[styles.body, { marginTop: 4 }]}>{step === 'phone' ? meta.help : `Enter the 4-digit code sent for +220 ${maskedPhone}.`}</Text>
+                <Text style={{ color: colors.text, fontSize: 19, lineHeight: 25, fontWeight: '900' }}>Verify your payment</Text>
+                <Text style={[styles.body, { marginTop: 4 }]}>Enter the 4-digit code sent for +220 {maskedPhone}.</Text>
               </View>
               <Pill text={`D${amount}`} tone={meta.tone} />
-            </View>
+            </View>}
 
             {step === 'phone' ? <View>
               <View style={[styles.rowBetween, { gap: 10 }]}>
                 <Text style={styles.label}>Payment phone number</Text>
-                <Text style={{ color: colors.softText, fontSize: 12, fontWeight: '800' }}>Gambia (+220)</Text>
+                <Text style={{ color: colors.softText, fontSize: 12, fontWeight: '800' }}>Gambia +220</Text>
               </View>
               <View style={{
-                marginTop: 9,
-                borderRadius: 20,
+                marginTop: 7,
+                borderRadius: 17,
                 borderWidth: phoneFocused || canPay ? 2 : 1,
                 borderColor: phone && !canPay ? colors.warning : canPay ? colors.success : phoneFocused ? tone.fg : colors.border,
                 backgroundColor: colors.surface2,
@@ -192,11 +251,8 @@ export default function PaymentCheckout() {
                 elevation: phoneFocused ? 3 : 0,
                 overflow: 'hidden'
               }}>
-                <View style={[styles.row, { minHeight: 64 }]}> 
-                  <View style={{ minWidth: 78, alignSelf: 'stretch', paddingHorizontal: 13, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: tone.bg, borderRightWidth: 1, borderRightColor: tone.border }}>
-                    <Text style={{ fontSize: 20 }}>🇬🇲</Text>
-                    <Text style={{ color: tone.fg, fontWeight: '900', fontSize: 15 }}>+220</Text>
-                  </View>
+                <View style={[styles.row, { minHeight: 56 }]}> 
+                  <View style={{ width: 48, alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center' }}><AppIcon name="phone" color={colors.softText} size={20} /></View>
                   <TextInput
                     value={phone}
                     onChangeText={handlePhoneChange}
@@ -212,7 +268,7 @@ export default function PaymentCheckout() {
                     returnKeyType="done"
                     onSubmitEditing={() => canPay ? sendOtp() : Keyboard.dismiss()}
                     selectionColor={tone.fg}
-                    style={{ flex: 1, minWidth: 0, minHeight: 64, paddingHorizontal: 14, color: colors.text, fontSize: 20, fontWeight: '900', letterSpacing: 0.8, opacity: step === 'phone' ? 1 : 0.72 }}
+                    style={{ flex: 1, minWidth: 0, minHeight: 56, paddingHorizontal: 4, color: colors.text, fontSize: 17, fontWeight: '800', opacity: step === 'phone' ? 1 : 0.72 }}
                   />
                   <TouchableOpacity disabled={!phone.length} onPress={() => { setPhone(''); setInputNote(''); }} activeOpacity={0.75} style={{ width: 46, alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center' }}>
                     <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: canPay ? colors.successSoft : colors.surface2, borderWidth: 1, borderColor: canPay ? colors.success : colors.border, alignItems: 'center', justifyContent: 'center' }}>
@@ -221,11 +277,10 @@ export default function PaymentCheckout() {
                   </TouchableOpacity>
                 </View>
               </View>
-              <View style={[styles.rowBetween, { marginTop: 10, gap: 10 }]}> 
-                <Text style={[styles.small, { flex: 1, color: canPay && !inputNote ? colors.success : colors.warning }]}>{phoneMessage}</Text>
+              <View style={[styles.rowBetween, { marginTop: 6, gap: 10 }]}> 
+                <Text numberOfLines={1} style={[styles.small, { flex: 1, color: canPay && !inputNote ? colors.success : colors.warning }]}>{phoneMessage}</Text>
                 <Text style={{ color: colors.softText, fontSize: 12, fontWeight: '900' }}>{validPhone(phone) ? 'Ready' : `${phone.length} digits`}</Text>
               </View>
-              <Text style={[styles.small, { marginTop: 8 }]}>You may paste the number with or without +220. We will format it safely.</Text>
             </View> : null}
 
             {step === 'otp' ? (
@@ -250,12 +305,12 @@ export default function PaymentCheckout() {
 
             {step === 'phone' ? (
               <Button
-                title={`Pay D${amount}`}
+                title={priceLoading ? 'Checking live price…' : `Pay D${amount}`}
                 icon="right"
-                disabled={!canPay}
+                disabled={!canPay || priceLoading}
                 loading={busy}
                 onPress={sendOtp}
-                style={{ minHeight: 62, borderRadius: 24, backgroundColor: canPay ? tone.fg : colors.surface3, borderColor: canPay ? tone.fg : colors.border, shadowOpacity: canPay ? (colors.isDark ? 0.32 : 0.18) : 0, elevation: canPay ? 6 : 0 }}
+                style={{ minHeight: 56, borderRadius: 18, backgroundColor: canPay && !priceLoading ? colors.primary : colors.surface3, borderColor: canPay && !priceLoading ? colors.primary : colors.border, shadowOpacity: canPay && !priceLoading ? (colors.isDark ? 0.32 : 0.18) : 0, elevation: canPay && !priceLoading ? 6 : 0 }}
               />
             ) : (
               <View style={{ gap: 10 }}>
@@ -264,6 +319,7 @@ export default function PaymentCheckout() {
               </View>
             )}
           </Card>
+          {step === 'phone' ? <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, marginTop: 10 }}><AppIcon name="shield" color={colors.softText} size={15} /><Text style={{ color: colors.softText, fontSize: 12, fontWeight: '700' }}>Secure payment · Contacts stay private</Text></View> : null}
         </Section>
       ) : (
         <Section title="Payment receipt" style={{ marginTop: 16 }}>
@@ -294,33 +350,14 @@ export default function PaymentCheckout() {
   );
 }
 
-function PaymentHero({ provider, amount, icon, tone }: { provider: string; amount: number; icon: string; tone: Tone }) {
-  const { colors, styles } = useAppTheme();
-  const t = getTone(colors, tone);
+function PaymentHero({ amount }: { amount: number }) {
+  const { colors } = useAppTheme();
   return (
-    <View style={{ borderRadius: 32, overflow: 'hidden', backgroundColor: colors.brandTop, marginBottom: 16, borderWidth: 1, borderColor: colors.border }}>
+    <View style={{ borderRadius: 28, overflow: 'hidden', backgroundColor: colors.brandTop, marginBottom: 0, borderWidth: 1, borderColor: colors.border }}>
       <View style={{ position: 'absolute', right: -72, top: -76, width: 200, height: 200, borderRadius: 100, backgroundColor: colors.brandBubble }} />
-      <View style={{ padding: 20 }}>
-        <View style={[styles.rowBetween, { gap: 14, alignItems: 'flex-start' }]}> 
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={{ color: 'rgba(255,255,255,0.72)', fontSize: 12, letterSpacing: 1.2, fontWeight: '900' }}>{provider.toUpperCase()} CHECKOUT</Text>
-            <Text style={{ color: colors.white, fontSize: 37, lineHeight: 42, fontWeight: '900', marginTop: 8 }}>D{amount}</Text>
-            <Text style={{ color: 'rgba(255,255,255,0.78)', fontWeight: '700', lineHeight: 21, marginTop: 5 }}>{provider} payment for the Contact Migration Pass.</Text>
-          </View>
-          <View style={{ width: 66, height: 66, borderRadius: 25, backgroundColor: 'rgba(255,255,255,0.14)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.24)', alignItems: 'center', justifyContent: 'center' }}>
-            <AppIcon name={icon} color={colors.white} size={28} />
-          </View>
-        </View>
-        <View style={{ marginTop: 16, backgroundColor: 'rgba(255,255,255,0.10)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.16)', borderRadius: 20, padding: 12 }}>
-          <View style={[styles.rowBetween, { gap: 10 }]}> 
-            <Text style={{ color: 'rgba(255,255,255,0.78)', fontWeight: '800' }}>Status</Text>
-            <Text style={{ color: colors.white, fontWeight: '900' }}>Secure</Text>
-          </View>
-          <View style={[styles.rowBetween, { gap: 10, marginTop: 8 }]}> 
-            <Text style={{ color: 'rgba(255,255,255,0.78)', fontWeight: '800' }}>Provider</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}><AppIcon name={icon} color={t.fg} size={15} /><Text style={{ color: colors.white, fontWeight: '900' }}>{provider}</Text></View>
-          </View>
-        </View>
+      <View style={{ paddingVertical: 18, paddingHorizontal: 20, alignItems: 'center' }}>
+        <Text style={{ color: colors.white, fontSize: 46, lineHeight: 52, fontWeight: '900', letterSpacing: -1.2 }}>D{amount}</Text>
+        <Text style={{ color: 'rgba(255,255,255,0.82)', fontWeight: '700', marginTop: 3 }}>One-time contact migration payment</Text>
       </View>
     </View>
   );

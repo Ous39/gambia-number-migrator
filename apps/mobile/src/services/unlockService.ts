@@ -21,9 +21,11 @@ export type AccessStatus = {
   trialContactsUsed: number;
   freeTrialLimit: number;
   remaining: number;
+  accessSource: 'trial' | 'paid' | 'campaign' | 'admin' | 'blocked';
+  promotional: boolean;
 };
 
-const EMPTY_ACCESS: AccessStatus = { status: 'offline', paid: false, trialContactsUsed: 0, freeTrialLimit: 10, remaining: 10 };
+const EMPTY_ACCESS: AccessStatus = { status: 'offline', paid: false, trialContactsUsed: 0, freeTrialLimit: 10, remaining: 10, accessSource: 'trial', promotional: false };
 
 export async function getAccessStatus(): Promise<AccessStatus> {
   const cached = await getJson<AccessStatus>(keys.accessStatus, EMPTY_ACCESS);
@@ -34,7 +36,8 @@ export async function getAccessStatus(): Promise<AccessStatus> {
     const used = Math.max(0, Number(remote?.trialContactsUsed || 0));
     const limit = Math.max(0, Number(remote?.freeTrialLimit ?? 10));
     const status = String(remote?.status || 'trial') as AccessStatus['status'];
-    const next = { status, paid: status === 'active', trialContactsUsed: used, freeTrialLimit: limit, remaining: Math.max(0, limit - used) };
+    const accessSource = String(remote?.accessSource || (status === 'active' ? 'paid' : 'trial')) as AccessStatus['accessSource'];
+    const next = { status, paid: status === 'active', trialContactsUsed: used, freeTrialLimit: limit, remaining: Math.max(0, limit - used), accessSource, promotional: accessSource === 'campaign' };
     await setJson(keys.accessStatus, next);
     if (next.paid) await markFeatureUnlocked(PREMIUM_FEATURES.bulkUnlock, 'server-confirmed');
     return next;

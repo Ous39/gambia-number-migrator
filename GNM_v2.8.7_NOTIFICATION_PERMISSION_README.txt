@@ -1,0 +1,32 @@
+GNM v2.8.7 - STANDARD NOTIFICATION PERMISSION FLOW
+
+What changed
+1. The notification controls were removed from the app Settings page.
+2. A one-time notification explanation screen now appears after the splash/intro flow.
+3. The phone's official Android or iOS permission dialog appears only after the user taps Allow Notifications.
+4. Users can tap Not Now and continue using the app.
+5. Existing users see the new permission explanation once after updating to v2.8.7.
+6. New users grant contact permission first, followed by notification permission.
+
+Release identifiers
+- App version: 2.8.7
+- Android versionCode: 32
+- iOS buildNumber: 32
+
+Build from apps/mobile
+  npx eas-cli@latest build --platform android --profile preview
+
+Production release
+  npx eas-cli@latest build --platform android --profile production
+
+Testing checklist
+- Fresh install: splash -> onboarding -> contacts request -> notification explanation -> system notification request -> dashboard.
+- Existing v2.8.6 user: splash -> notification explanation once -> dashboard.
+- Tap Not Now: dashboard opens and the explanation does not return on the next launch.
+- Tap Allow: the device registers and receives an admin test notification.
+- Confirm Settings contains no notification permission section.
+
+Important
+- Android push requires the already-configured FCM V1 service-account credential in EAS.
+- iOS push requires valid APNs credentials in the Apple Developer account.
+- Never commit Firebase Admin SDK private JSON files.

@@ -20,6 +20,11 @@ export default function SupportDevices() {
     try { await api(`/admin/devices/${encodeURIComponent(id)}/restore-paid-access`, { method: 'POST' }); setMessage('Paid Contact Migration Pass access restored.'); await load(); }
     catch (e: any) { setMessage(e.message); }
   }
+  async function resetTrialUsage(id: string) {
+    if (!window.confirm('Reset this device trial usage to zero? Use this only to correct failed migrations that were counted.')) return;
+    try { await api(`/admin/devices/${encodeURIComponent(id)}/reset-trial-usage`, { method: 'POST' }); setMessage('Trial usage reset. The device can refresh and test again.'); await load(); }
+    catch (e: any) { setMessage(e.message); }
+  }
   return <>
     <div className="topbar"><div className="pageTitle"><h1>Support devices</h1><p>Resolve payment and access problems using the support code shared by the user.</p></div><span className="badge">No contacts stored</span></div>
     {message && <p className="notice" role="status">{message}</p>}
@@ -33,7 +38,7 @@ export default function SupportDevices() {
           <td><span className="badge">{x.status}</span><small className="cellNote">Access: {x.accessSource || 'trial'}<br />Trial used: {x.trialContactsUsed || 0}</small></td>
           <td>{x.paymentStatus ? <><strong>{x.paymentStatus}</strong><small className="cellNote">{x.paymentProvider} · {x.paymentAmount} {x.paymentCurrency}<br />{x.paymentReference}</small></> : 'No payment'}</td>
           <td>{x.lastIp || 'Unavailable'}<small className="cellNote">{new Date(x.updatedAt).toLocaleString()}</small></td>
-          <td><div className="actionStack">{x.paymentStatus === 'success' && x.status !== 'active' && x.status !== 'blocked' ? <button className="btn" onClick={() => restorePaidAccess(x.id)}>Restore access</button> : null}{x.status === 'blocked' ? <button className="btn secondary" onClick={() => changeStatus(x.id, 'unblock')}>Unblock</button> : <button className="btn danger" onClick={() => changeStatus(x.id, 'block')}>Block</button>}</div></td>
+          <td><div className="actionStack">{x.paymentStatus === 'success' && x.status !== 'active' && x.status !== 'blocked' ? <button className="btn" onClick={() => restorePaidAccess(x.id)}>Restore access</button> : null}{x.status === 'trial' && Number(x.trialContactsUsed || 0) > 0 ? <button className="btn secondary" onClick={() => resetTrialUsage(x.id)}>Reset trial usage</button> : null}{x.status === 'blocked' ? <button className="btn secondary" onClick={() => changeStatus(x.id, 'unblock')}>Unblock</button> : <button className="btn danger" onClick={() => changeStatus(x.id, 'block')}>Block</button>}</div></td>
         </tr>)}</tbody>
       </table>{!filtered.length && <p>No matching support record.</p>}
     </div>

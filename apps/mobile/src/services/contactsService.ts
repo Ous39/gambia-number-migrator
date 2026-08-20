@@ -220,12 +220,99 @@ async function readContactPhones(contactId: string) {
   return { contact, phoneNumbers: [...((contact.phoneNumbers || []) as ExpoPhone[])] };
 }
 
+function isRestrictedContactError(error: any) {
+  const raw = String(error?.message || error || 'The contacts provider rejected the update.');
+  return /OperationApplicationException|insert failed|returned no result|read.?only/i.test(raw);
+}
+
+function contactWriteError(error: any) {
+  const raw = String(error?.message || error || 'The contacts provider rejected the update.');
+  return new Error(isRestrictedContactError(error)
+    ? 'Android could not write this contact. It may be stored on the SIM, WhatsApp, or a read-only/synced account. Move or copy it to the Phone or Google contacts account, then try again.'
+    : raw);
+}
+
+type ContactWriteResult = { copied: boolean; contactId: string };
+
+type WritableContactCopy = { sourceContactId: string; writableContactId: string; createdAt: string; backupIds?: string[] };
+
+async function createOrUpdateWritableCopy(sourceContactId: string, expected: ExpoPhone[], fallbackName?: string, backupId?: string): Promise<ContactWriteResult> {
+  const copies = await getJson<WritableContactCopy[]>(keys.writableContactCopies, []);
+  const existing = copies.find((entry) => entry.sourceContactId === sourceContactId);
+  const source = await Contacts.getContactByIdAsync(sourceContactId);
+  const firstName = String(source?.firstName || source?.name || fallbackName || 'Migrated contact').trim();
+  const copyPhones = expected.map((phone) => ({ label: phone.label || 'mobile', number: phoneText(phone) }));
+
+  if (existing) {
+    const writable = await Contacts.getContactByIdAsync(existing.writableContactId, [Contacts.Fields.PhoneNumbers]);
+    if (writable) {
+      await Contacts.updateContactAsync({ id: existing.writableContactId, phoneNumbers: copyPhones } as any);
+      if (backupId && !existing.backupIds?.includes(backupId)) {
+        existing.backupIds = [...(existing.backupIds || []), backupId];
+        await setJson(keys.writableContactCopies, copies);
+      }
+      return { copied: true, contactId: existing.writableContactId };
+    }
+  }
+
+  const writableContactId = await Contacts.addContactAsync({
+    firstName,
+    ...(source?.lastName ? { lastName: source.lastName } : {}),
+    ...(source?.company ? { company: source.company } : {}),
+    phoneNumbers: copyPhones,
+    note: 'Writable safety copy created by Gambia Number Migrator',
+  } as any);
+  const next = [{ sourceContactId, writableContactId, createdAt: new Date().toISOString(), backupIds: backupId ? [backupId] : [] }, ...copies.filter((entry) => entry.sourceContactId !== sourceContactId)].slice(0, 10000);
+  await setJson(keys.writableContactCopies, next);
+  return { copied: true, contactId: writableContactId };
+}
+
+async function writeContactPhones(contactId: string, expected: ExpoPhone[], fallbackName?: string, allowWritableCopy = false, backupId?: string): Promise<ContactWriteResult> {
+  const payload = expected.map((phone) => ({
+    ...(phone.id ? { id: phone.id } : {}),
+    label: phone.label || 'mobile',
+    number: phoneText(phone),
+  }));
+
+  try {
+    // Only send the field GNM changes. Spreading the complete Expo contact can
+    // make Android attempt to insert account-owned/read-only data rows.
+    await Contacts.updateContactAsync({ id: contactId, phoneNumbers: payload } as any);
+    return { copied: false, contactId };
+  } catch (firstError) {
+    // Android contact providers can return stale data-row ids after a sync.
+    // Re-read once and retry with current ids before reporting the contact.
+    try {
+      const fresh = await Contacts.getContactByIdAsync(contactId, [Contacts.Fields.PhoneNumbers]);
+      if (!fresh) throw firstError;
+      const freshPhones = (fresh.phoneNumbers || []) as ExpoPhone[];
+      const retryPayload = payload.map((phone) => {
+        if (!phone.id) return phone;
+        const current = freshPhones.find((candidate) => candidate.id === phone.id)
+          || freshPhones.find((candidate) => sameNormalizedPhone(phoneText(candidate), phone.number));
+        return { ...phone, ...(current?.id ? { id: current.id } : {}) };
+      });
+      await Contacts.updateContactAsync({ id: contactId, phoneNumbers: retryPayload } as any);
+      return { copied: false, contactId };
+    } catch (retryError) {
+      if (allowWritableCopy && Platform.OS === 'android' && isRestrictedContactError(retryError)) {
+        try {
+          return await createOrUpdateWritableCopy(contactId, expected, fallbackName, backupId);
+        } catch (copyError) {
+          throw contactWriteError(copyError);
+        }
+      }
+      throw contactWriteError(retryError);
+    }
+  }
+}
+
 function phoneSnapshot(phones: ExpoPhone[]) {
   return phones.map((phone) => phoneText(phone).replace(/\D/g, '')).filter(Boolean).sort();
 }
 
 async function updateAndVerifyPhones(contact: any, expected: ExpoPhone[]) {
-  await Contacts.updateContactAsync({ ...contact, phoneNumbers: expected } as any);
+  await writeContactPhones(contact.id, expected);
   const verified = await Contacts.getContactByIdAsync(contact.id, [Contacts.Fields.PhoneNumbers]);
   if (!verified || JSON.stringify(phoneSnapshot((verified.phoneNumbers || []) as ExpoPhone[])) !== JSON.stringify(phoneSnapshot(expected))) {
     throw new Error('The phone did not confirm the restored contact numbers.');
@@ -323,12 +410,13 @@ export async function applyDuplicateAdd(selected: MigrationCandidate[], onProgre
         else {
           const migratedDisplay = formatMigratedLikeOriginal(item.originalNumber, item.migratedNumber);
           phoneNumbers.push({ label: item.phoneLabel || 'mobile', number: migratedDisplay });
-          await Contacts.updateContactAsync({ ...contact, phoneNumbers } as any);
+          const writeResult = await writeContactPhones(contact.id, phoneNumbers, item.contactName, true, backup.id);
           if (shouldVerifyWrite(job.completedKeys.length)) {
-            const verified = await readContactPhones(item.contactId);
+            const verified = await readContactPhones(writeResult.contactId);
             if (!verified.phoneNumbers.some((p) => sameNormalizedPhone(phoneText(p), item.migratedNumber!)) || !verified.phoneNumbers.some((p) => sameNormalizedPhone(phoneText(p), item.originalNumber))) throw new Error('Contact update could not be verified.');
           }
           added++;
+          if (writeResult.copied) job.copied = Number(job.copied || 0) + 1;
           successKeys.add(itemKey);
         }
       } catch (error: any) {
@@ -346,6 +434,7 @@ export async function applyDuplicateAdd(selected: MigrationCandidate[], onProgre
   await appendHistory({
     operationType: 'duplicate_add',
     numberAdded: added,
+    numberCopied: Number(job.copied || 0),
     numberSkipped: skipped,
     numberFailed: failed,
     backupId: backup.id,
@@ -353,7 +442,7 @@ export async function applyDuplicateAdd(selected: MigrationCandidate[], onProgre
     failureDetails
   });
   await setJson(keys.migrationJob, null);
-  return { added, skipped, failed, backupId: backup.id, failureDetails };
+  return { added, copied: Number(job.copied || 0), skipped, failed, backupId: backup.id, failureDetails };
 }
 
 export async function applyReplace(selected: MigrationCandidate[], onProgress?: (progress: MigrationProgress) => void, shouldPause?: () => boolean) {
@@ -397,13 +486,14 @@ export async function applyReplace(selected: MigrationCandidate[], onProgress?: 
         ? phoneNumbers.filter((_p, index) => index !== oldIndex)
         : phoneNumbers.map((p, index) => (index === oldIndex ? { ...p, number: formatMigratedLikeOriginal(phoneText(p), item.migratedNumber!) } : p));
 
-      await Contacts.updateContactAsync({ ...contact, phoneNumbers: next } as any);
+      const writeResult = await writeContactPhones(contact.id, next, item.contactName, true, backup.id);
       if (shouldVerifyWrite(job.completedKeys.length)) {
-        const verified = await readContactPhones(item.contactId);
+        const verified = await readContactPhones(writeResult.contactId);
         const oldCountAfter = verified.phoneNumbers.filter((p) => sameNormalizedPhone(phoneText(p), item.originalNumber)).length;
-        if (!verified.phoneNumbers.some((p) => sameNormalizedPhone(phoneText(p), item.migratedNumber!)) || oldCountAfter >= oldCountBefore) throw new Error('Contact replacement could not be verified.');
+        if (!verified.phoneNumbers.some((p) => sameNormalizedPhone(phoneText(p), item.migratedNumber!)) || (!writeResult.copied && oldCountAfter >= oldCountBefore)) throw new Error('Contact replacement could not be verified.');
       }
       replaced++;
+      if (writeResult.copied) job.copied = Number(job.copied || 0) + 1;
       successKeys.add(itemKey);
     } catch (error: any) {
       failed++;
@@ -419,6 +509,7 @@ export async function applyReplace(selected: MigrationCandidate[], onProgress?: 
   await appendHistory({
     operationType: 'replace_update',
     numberReplaced: replaced,
+    numberCopied: Number(job.copied || 0),
     numberSkipped: skipped,
     numberFailed: failed,
     backupId: backup.id,
@@ -426,7 +517,7 @@ export async function applyReplace(selected: MigrationCandidate[], onProgress?: 
     failureDetails
   });
   await setJson(keys.migrationJob, null);
-  return { replaced, skipped, failed, backupId: backup.id, failureDetails };
+  return { replaced, copied: Number(job.copied || 0), skipped, failed, backupId: backup.id, failureDetails };
 }
 
 export async function removeOldDuplicates(selected: CleanupCandidate[]) {
@@ -463,7 +554,7 @@ export async function removeOldDuplicates(selected: CleanupCandidate[]) {
       }
 
       const next = phoneNumbers.filter((_p, index) => !oldIndexes.includes(index));
-      await Contacts.updateContactAsync({ ...contact, phoneNumbers: next } as any);
+      await writeContactPhones(contact.id, next);
       const verified = await readContactPhones(item.contactId);
       if (!verified.phoneNumbers.some((p) => sameNormalizedPhone(phoneText(p), item.newNumber)) || verified.phoneNumbers.some((p) => sameNormalizedPhone(phoneText(p), item.oldNumber))) throw new Error('Duplicate cleanup could not be verified.');
       removed++;
@@ -495,9 +586,20 @@ export async function restoreBackup(backupId: string) {
 
   const backupItems = await loadBackupItems(backup);
   if (!backupItems.length) throw new Error('This backup contains no contact records and cannot be restored.');
+  const writableCopies = await getJson<WritableContactCopy[]>(keys.writableContactCopies, []);
 
   for (const item of backupItems) {
     try {
+      const writableCopy = writableCopies.find((entry) => entry.sourceContactId === item.contactId && entry.backupIds?.includes(backupId));
+      const savedWritableSnapshot = Array.isArray(item.beforePhoneNumbers) ? item.beforePhoneNumbers : [];
+      if (writableCopy && savedWritableSnapshot.length) {
+        const copy = await Contacts.getContactByIdAsync(writableCopy.writableContactId, [Contacts.Fields.PhoneNumbers]);
+        if (copy) {
+          await updateAndVerifyPhones(copy, savedWritableSnapshot);
+          restored++;
+          continue;
+        }
+      }
       const contact = await Contacts.getContactByIdAsync(item.contactId, [Contacts.Fields.PhoneNumbers]);
       if (!contact) {
         failed++;

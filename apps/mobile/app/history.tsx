@@ -64,11 +64,12 @@ export default function History() {
   const totals = useMemo(() => items.reduce((acc, item) => {
     acc.scanned += countNumber(item, 'numberScanned');
     acc.updated += countNumber(item, 'numberAdded') + countNumber(item, 'numberReplaced');
+    acc.copied += countNumber(item, 'numberCopied');
     acc.removed += countNumber(item, 'numberRemoved');
     acc.restored += countNumber(item, 'numberRestored');
     acc.failed += countNumber(item, 'numberFailed');
     return acc;
-  }, { scanned: 0, updated: 0, removed: 0, restored: 0, failed: 0 }), [items]);
+  }, { scanned: 0, updated: 0, copied: 0, removed: 0, restored: 0, failed: 0 }), [items]);
 
   const successCount = items.filter((item) => item.status === 'success').length;
   const successPercent = items.length ? Math.round((successCount / items.length) * 100) : 0;
@@ -101,7 +102,7 @@ export default function History() {
           <Text style={{ color: colors.primary, fontWeight: '900' }}>{successPercent}%</Text>
         </View>
         <ProgressBar percent={successPercent} />
-        <Text style={styles.small}>{totals.failed.toLocaleString()} failed items across all records. Contact details are not uploaded.</Text>
+        <Text style={styles.small}>{totals.failed.toLocaleString()} failed · {totals.copied.toLocaleString()} restricted contacts safely copied. Contact details are not uploaded.</Text>
       </Card>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingBottom: 14 }}>

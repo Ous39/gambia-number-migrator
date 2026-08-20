@@ -60,7 +60,7 @@ export default function Cleanup() {
   const topHeader = <BackHeader title="Remove Old Duplicates" subtitle="Clean old numbers only after safe verification." />;
   const header = (
     <>
-      <View style={{ marginBottom: 12 }}><NoticeCard title="Safety rule" text="The app never removes an old number unless the matching new number exists in the same contact and the pair is verified by the rules engine." tone="warning" icon="warning" /></View>
+      <View style={{ marginBottom: 10 }}><NoticeCard title="Verified cleanup only" text="Old numbers are removed only when the matching new number is saved." tone="warning" icon="warning" /></View>
       <SearchBox value={q} onChangeText={setQ} placeholder="Search contact or number" />
       <View style={[styles.rowBetween, { marginTop: 12, marginBottom: 10 }]}> 
         <Text style={styles.body}><Text style={{ color: colors.text, fontWeight: '800' }}>{selectedItems.length}</Text> selected · {filtered.length} shown</Text>
@@ -68,18 +68,15 @@ export default function Cleanup() {
       </View>
     </>
   );
-  const footer = <Card style={{ marginTop: 6 }}><Button title={`Remove Selected (${selectedItems.length})`} loading={busy} disabled={busy || !selectedItems.length} variant="danger" icon="cleanup" onPress={confirm} /></Card>;
+  const footer = <Button title={`Remove Selected (${selectedItems.length})`} loading={busy} disabled={busy || !selectedItems.length} variant="danger" icon="cleanup" onPress={confirm} style={{ marginTop: 2 }} />;
 
   return <>
     <ListScreen data={filtered} keyExtractor={(item) => cleanupKey(item)} topHeader={topHeader} header={header} footer={footer} empty={loading ? <Card><Text style={styles.body}>Loading cleanup results...</Text></Card> : <EmptyState icon="cleanup" title={scan ? 'No safe duplicate pairs' : 'Scan required'} text={scan ? 'No verified old/new pairs match this search.' : 'Scan your contacts first. Only verified old/new pairs will appear here.'} />} renderItem={({ item }) => {
     const key = cleanupKey(item); const active = !!selected[key];
     return (
-      <TouchableOpacity activeOpacity={0.85} disabled={busy} onPress={() => item.status === 'Safe' && setSelected((current) => ({ ...current, [key]: !current[key] }))} style={[styles.card, { marginBottom: 10, borderColor: active ? colors.warning : colors.line }]}> 
+      <TouchableOpacity activeOpacity={0.85} disabled={busy} onPress={() => item.status === 'Safe' && setSelected((current) => ({ ...current, [key]: !current[key] }))} style={[styles.card, { marginBottom: 8, padding: 12, borderColor: active ? colors.warning : colors.line }]}>
         <View style={styles.rowBetween}><Text numberOfLines={1} style={{ color: colors.text, fontWeight: '800', fontSize: 16, flex: 1 }}>{item.contactName || 'Unnamed contact'}</Text>{item.status === 'Safe' ? <OperatorBadge operator={item.operatorName} /> : <Pill text={item.status || 'Review'} tone="danger" />}</View>
-        <View style={styles.divider} />
-        <Text style={{ color: colors.danger, fontWeight: '800' }}>Remove old: {item.oldNumber}</Text>
-        <Text style={{ color: colors.success, fontWeight: '800', marginTop: 6 }}>Keep new: {item.newNumber}</Text>
-        <Text style={[styles.small, { marginTop: 8 }]}>{item.reason}</Text>
+        <View style={[styles.rowBetween, { marginTop: 8, gap: 8 }]}><Text style={{ color: colors.danger, fontWeight: '800' }}>− {item.oldNumber}</Text><Text style={{ color: colors.success, fontWeight: '800' }}>Keep {item.newNumber}</Text></View>
       </TouchableOpacity>
     );
   }} />

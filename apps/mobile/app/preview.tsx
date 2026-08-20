@@ -7,7 +7,7 @@ import { BackHeader, Card, EmptyState, FilterChip, FixedBottomTabs, FloatingActi
 import { AppIcon } from '../src/components/AppIcon';
 import { applyDuplicateAdd, applyReplace } from '../src/services/contactsService';
 import { getJson, keys } from '../src/services/storage';
-import { authorizeMigration, getAccessStatus, type AccessStatus } from '../src/services/unlockService';
+import { authorizeMigration, getAccessStatus, settleMigrationAllowance, type AccessStatus } from '../src/services/unlockService';
 import { getTone, radius, type Tone, useAppTheme, useResponsive } from '../src/appTheme';
 import { hasApprovedMigrationRules } from '@gnm/shared';
 
@@ -81,7 +81,10 @@ export default function Preview() {
   }), [all, q, filter]);
 
   const visibleReady = filtered.filter((item) => item.status === 'Ready');
-  const selectedItems = useMemo(() => visibleReady.filter((item) => selected[candidateKey(item)]), [visibleReady, selected]);
+  // Selection belongs to the whole scan, not the current search/operator view.
+  // A filter change must never silently remove contacts from the migration job.
+  const selectedItems = useMemo(() => all.filter((item) => item.status === 'Ready' && selected[candidateKey(item)]), [all, selected]);
+  const visibleSelectedCount = useMemo(() => visibleReady.filter((item) => selected[candidateKey(item)]).length, [visibleReady, selected]);
   const readyCount = all.filter((item) => item.status === 'Ready').length;
 
   function setFilter(nextFilter: string) {
@@ -133,11 +136,16 @@ export default function Preview() {
             const existingJob = await getJson<any>(keys.migrationJob, null);
             const operation = mode === 'replace' ? 'replace_update' : 'duplicate_add';
             const sameResumableJob = existingJob?.status === 'running' && existingJob?.operation === operation && selectedItems.every((item) => existingJob.selectedKeys?.includes(candidateKey(item)));
-            if (!sameResumableJob) await authorizeMigration(selectedItems.length, mode);
+            const authorization = sameResumableJob ? null : await authorizeMigration(selectedItems.length, mode);
             const onProgress = (progress: any) => setMigrationProgress(progress);
             const shouldPause = () => pauseRequested.current;
             const result = mode === 'replace' ? await applyReplace(selectedItems, onProgress, shouldPause) : await applyDuplicateAdd(selectedItems, onProgress, shouldPause);
-            router.replace({ pathname: '/complete', params: { total: String(selectedItems.length), updated: String((result as any).added || (result as any).replaced || 0), skipped: String((result as any).skipped || 0), failed: String((result as any).failed || 0), backupId: String((result as any).backupId || '') } });
+            const succeeded = Number((result as any).added || (result as any).replaced || 0);
+            // Contact writes are already complete at this point. A temporary
+            // allowance-sync failure must not misreport the migration as failed.
+            if (authorization?.access === 'trial') await settleMigrationAllowance(selectedItems.length, succeeded).catch(() => undefined);
+            const failureSummary = ((result as any).failureDetails || []).slice(0, 3).map((item: any) => `${item.contactName}: ${item.reason}`).join(' | ');
+            router.replace({ pathname: '/complete', params: { total: String(selectedItems.length), updated: String((result as any).added || (result as any).replaced || 0), skipped: String((result as any).skipped || 0), failed: String((result as any).failed || 0), backupId: String((result as any).backupId || ''), failureSummary } });
           } catch (e: any) {
             const paymentNeeded = /premium|payment|trial/i.test(e?.message || '');
             showDialog({ title: paymentNeeded ? 'Full unlock required' : 'Migration paused safely', message: e?.message || 'Could not update contacts. Re-select the same contacts to resume from the last checkpoint.', tone: paymentNeeded ? 'warning' : 'danger', icon: paymentNeeded ? 'shield' : 'warning', actions: paymentNeeded ? [{ text: 'Cancel', variant: 'secondary' }, { text: 'Go to Payment', onPress: () => router.push('/payment') }] : [{ text: 'OK' }] });
@@ -168,7 +176,7 @@ export default function Preview() {
         </ScrollView>
         <View style={{ gap: 10 }}>
           <View style={[styles.rowBetween, { gap: 10 }]}> 
-            <View style={{ flex: 1, minWidth: 0 }}><Text style={styles.label}>Selection</Text><Text style={styles.small}>{selectedItems.length.toLocaleString()} selected of {visibleReady.length.toLocaleString()} ready in this view</Text></View>
+            <View style={{ flex: 1, minWidth: 0 }}><Text style={styles.label}>Selection</Text><Text style={styles.small}>{selectedItems.length.toLocaleString()} selected in total · {visibleSelectedCount.toLocaleString()} in this view</Text></View>
             <Pill text={mode === 'duplicate' ? 'Keep old number' : 'Replace old number'} tone={mode === 'duplicate' ? 'primary' : 'warning'} />
           </View>
           {!access?.paid ? <Text style={[styles.small, { color: colors.warning }]}>Free access: {access?.remaining ?? 10} migrations remaining. Select All is limited automatically.</Text> : null}

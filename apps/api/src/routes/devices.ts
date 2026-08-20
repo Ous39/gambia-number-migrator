@@ -126,7 +126,6 @@ devicesRouter.post('/devices/:fingerprint/trial-increment', async (req, res, nex
   }
 });
 
-
 devicesRouter.get('/admin/devices', requireAdmin, async (_req, res, next) => {
   try {
     const rows = await query(`SELECT d.*, p.reference AS payment_reference, p.provider AS payment_provider, p.amount AS payment_amount, p.currency AS payment_currency, p.status AS payment_status, p.paid_at
@@ -167,6 +166,19 @@ devicesRouter.post('/admin/devices/:id/unblock', requireAdmin, async (req, res, 
     const r = await query("UPDATE devices SET status='trial',access_source='trial', updated_at=NOW() WHERE id=$1 RETURNING *", [req.params.id]);
     await audit(req, 'device_unblocked', 'device', String(req.params.id), null, r.rows[0]);
     res.json({ data: r.rows[0] ? publicDevice(r.rows[0]) : null });
+  } catch (e) {
+    next(e);
+  }
+});
+
+devicesRouter.post('/admin/devices/:id/reset-trial-usage', requireAdmin, async (req, res, next) => {
+  try {
+    const before = await query('SELECT * FROM devices WHERE id=$1 LIMIT 1', [req.params.id]);
+    if (!before.rowCount) return res.status(404).json({ message: 'Device not found' });
+    if (before.rows[0].status !== 'trial') return res.status(409).json({ message: 'Trial usage can only be reset for a trial device.' });
+    const r = await query('UPDATE devices SET trial_contacts_used=0, updated_at=NOW() WHERE id=$1 RETURNING *', [req.params.id]);
+    await audit(req, 'trial_usage_reset', 'device', String(req.params.id), before.rows[0], r.rows[0]);
+    res.json({ data: publicDevice(r.rows[0]) });
   } catch (e) {
     next(e);
   }

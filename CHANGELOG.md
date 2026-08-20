@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.8.9 - 2026-08-20
+
+- Fixed failed and skipped contact writes consuming free trial allowance.
+- Fixed selected contacts disappearing when Preview filters changed.
+- Added per-contact native write failure details to migration results and local history.
+- Added an audited Admin action to reset incorrectly consumed trial usage on affected test devices.
+- Advanced Android versionCode and iOS buildNumber to 34.
+
 ## 2.6.2 - 2026-07-21
 
 - Added dedicated Android and iOS keyboard avoidance to payment checkout.

@@ -303,6 +303,7 @@ export async function applyDuplicateAdd(selected: MigrationCandidate[], onProgre
   let added = Number(job.succeeded || 0);
   let skipped = Number(job.skipped || 0);
   let failed = Number(job.failed || 0);
+  const failureDetails: Array<{ contactName: string; number: string; reason: string }> = [];
   const successKeys = new Set<string>(job.successKeys || []);
   const completed = new Set<string>(job.completedKeys || []);
 
@@ -330,7 +331,10 @@ export async function applyDuplicateAdd(selected: MigrationCandidate[], onProgre
           added++;
           successKeys.add(itemKey);
         }
-      } catch { failed++; }
+      } catch (error: any) {
+        failed++;
+        failureDetails.push({ contactName: item.contactName || 'Unnamed contact', number: item.originalNumber, reason: error?.message || 'The contacts provider rejected the update.' });
+      }
     }
     markJobComplete(job, completed, itemKey, added, skipped, failed);
     await checkpointJob(job); emitMigrationProgress(job, selected.length, onProgress);
@@ -345,10 +349,11 @@ export async function applyDuplicateAdd(selected: MigrationCandidate[], onProgre
     numberSkipped: skipped,
     numberFailed: failed,
     backupId: backup.id,
-    status: failed ? 'partial' : 'success'
+    status: failed ? 'partial' : 'success',
+    failureDetails
   });
   await setJson(keys.migrationJob, null);
-  return { added, skipped, failed, backupId: backup.id };
+  return { added, skipped, failed, backupId: backup.id, failureDetails };
 }
 
 export async function applyReplace(selected: MigrationCandidate[], onProgress?: (progress: MigrationProgress) => void, shouldPause?: () => boolean) {
@@ -361,6 +366,7 @@ export async function applyReplace(selected: MigrationCandidate[], onProgress?: 
   let replaced = Number(job.succeeded || 0);
   let skipped = Number(job.skipped || 0);
   let failed = Number(job.failed || 0);
+  const failureDetails: Array<{ contactName: string; number: string; reason: string }> = [];
   const successKeys = new Set<string>(job.successKeys || []);
   const completed = new Set<string>(job.completedKeys || []);
 
@@ -399,8 +405,9 @@ export async function applyReplace(selected: MigrationCandidate[], onProgress?: 
       }
       replaced++;
       successKeys.add(itemKey);
-    } catch {
+    } catch (error: any) {
       failed++;
+      failureDetails.push({ contactName: item.contactName || 'Unnamed contact', number: item.originalNumber, reason: error?.message || 'The contacts provider rejected the replacement.' });
     }
     markJobComplete(job, completed, itemKey, replaced, skipped, failed);
     await checkpointJob(job); emitMigrationProgress(job, selected.length, onProgress);
@@ -415,10 +422,11 @@ export async function applyReplace(selected: MigrationCandidate[], onProgress?: 
     numberSkipped: skipped,
     numberFailed: failed,
     backupId: backup.id,
-    status: failed ? 'partial' : 'success'
+    status: failed ? 'partial' : 'success',
+    failureDetails
   });
   await setJson(keys.migrationJob, null);
-  return { replaced, skipped, failed, backupId: backup.id };
+  return { replaced, skipped, failed, backupId: backup.id, failureDetails };
 }
 
 export async function removeOldDuplicates(selected: CleanupCandidate[]) {

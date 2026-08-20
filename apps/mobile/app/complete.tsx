@@ -14,6 +14,7 @@ export default function Complete() {
   const skipped = Number(params.skipped || 0);
   const failed = Number(params.failed || 0);
   const backupId = String(params.backupId || '');
+  const failureSummary = String(params.failureSummary || '');
   const size = r.compact ? 132 : 160;
   return (
     <Screen>
@@ -36,6 +37,7 @@ export default function Complete() {
         </View>
         {backupId ? <View style={{ marginTop: 12, padding: 12, borderRadius: 16, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.line }}><Text style={styles.small}>Backup created</Text><Text numberOfLines={1} ellipsizeMode="middle" style={{ color: colors.text, fontWeight: '800', marginTop: 3 }}>{backupId}</Text></View> : null}
       </Card>
+      {failureSummary ? <Card style={{ marginTop: 14, borderColor: colors.danger }}><Text style={{ color: colors.danger, fontWeight: '900', marginBottom: 6 }}>Why some contacts failed</Text><Text style={styles.body}>{failureSummary}</Text><Text style={[styles.small, { marginTop: 8 }]}>These details are stored only in the app history on this device.</Text></Card> : null}
       <Card style={{ marginTop: 14 }}>
         <Text style={{ color: colors.text, fontWeight: '900', marginBottom: 6 }}>Your contacts are protected</Text>
         <Text style={styles.body}>GNM used the verified rules saved on this device. A local safety backup was created before any contact was changed.</Text>

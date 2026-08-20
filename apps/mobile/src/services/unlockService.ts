@@ -74,12 +74,24 @@ export async function authorizeMigration(count: number, mode: 'duplicate' | 'rep
     return { access: 'paid' as const, remaining: null };
   }
   if (mode === 'replace') throw new Error('Replace mode is a premium feature. Complete payment to continue.');
-  try {
-    const result = await consumeTrialAllowance(deviceId, count);
-    return { access: 'trial' as const, remaining: Math.max(0, Number(result.freeTrialLimit || 0) - Number(result.trialContactsUsed || 0)) };
-  } catch (error: any) {
-    throw new Error(error?.message?.includes('Premium') ? 'Your free 10-contact trial is complete. Unlock unlimited migration to continue.' : error?.message || 'Could not verify migration access.');
-  }
+  const limit = Math.max(0, Number(status?.freeTrialLimit || 0));
+  const used = Math.max(0, Number(status?.trialContactsUsed || 0));
+  const remaining = Math.max(0, limit - used);
+  if (count > remaining) throw new Error(`You have ${remaining} free contact migration${remaining === 1 ? '' : 's'} remaining. Select fewer contacts or unlock unlimited migration.`);
+  return { access: 'trial' as const, remaining };
+}
+
+/**
+ * Charge only successful writes. Failed and skipped contacts must never consume
+ * the user's free allowance.
+ */
+export async function settleMigrationAllowance(reserved: number, succeeded: number) {
+  void reserved;
+  const completed = Math.max(0, Math.floor(succeeded));
+  if (!completed) return;
+  const deviceId = await getDeviceFingerprint();
+  await consumeTrialAllowance(deviceId, completed);
+  await getAccessStatus();
 }
 
 export async function requirePaidFeature() {

@@ -35,7 +35,7 @@ publicRouter.get('/public/status', async (_req, res, next) => {
     const config = await configMap([
       'subscription_price', 'currency', 'free_access_mode', 'free_access_user_limit',
       'maintenance_mode', 'minimum_app_version', 'wave_payment_enabled', 'aps_payment_enabled',
-      'announcement_message'
+      'announcement_message', 'play_store_url', 'app_store_url'
     ]);
 
     const [transition, rules, promo] = await Promise.all([
@@ -70,6 +70,10 @@ publicRouter.get('/public/status', async (_req, res, next) => {
         payments: {
           wave: config.wave_payment_enabled === true,
           aps: config.aps_payment_enabled === true
+        },
+        stores: {
+          android: config.play_store_url ? String(config.play_store_url).replace(/^"|"$/g, '') || null : null,
+          ios: config.app_store_url ? String(config.app_store_url).replace(/^"|"$/g, '') || null : null
         },
         rules: {
           publishedVersion: rules.rows[0]?.version_number ?? null,

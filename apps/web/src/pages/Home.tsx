@@ -1,16 +1,37 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Seo } from '../components/Seo';
 import { NumberChecker } from '../components/NumberChecker';
 import { PublicContent } from '../components/PublicContent';
 import { AppPreviewPhone } from '../components/AppPreviewPhone';
 import { Page } from '../components/SiteShell';
+import { getAppConfig } from '../api/client';
 
-const PLAY_STORE_URL = import.meta.env.VITE_PLAY_STORE_URL as string | undefined;
-const APP_STORE_URL = import.meta.env.VITE_APP_STORE_URL as string | undefined;
+const ENV_PLAY = import.meta.env.VITE_PLAY_STORE_URL as string | undefined;
+const ENV_APP = import.meta.env.VITE_APP_STORE_URL as string | undefined;
 
-function StoreButton({ url, platform }: { url?: string; platform: string }) {
+function StoreButton({ url, platform }: { url?: string | null; platform: string }) {
   const body = <><span aria-hidden="true">{platform === 'Google Play' ? '▶' : ''}</span><div><small>{url ? 'DOWNLOAD ON' : 'COMING SOON ON'}</small><b>{platform}</b></div></>;
-  return url ? <a className="store linked" href={url} target="_blank" rel="noreferrer">{body}</a> : <div className="store">{body}</div>;
+  return url
+    ? <a className="store linked" href={url} target="_blank" rel="noreferrer">{body}</a>
+    : <div className="store">{body}</div>;
+}
+
+/** Store links are set by an administrator in App configuration; env vars are a fallback. */
+function useStoreLinks() {
+  const [links, setLinks] = useState<{ play: string | null; app: string | null }>({ play: ENV_PLAY || null, app: ENV_APP || null });
+  useEffect(() => {
+    let active = true;
+    getAppConfig().then((c) => {
+      if (!active) return;
+      setLinks({
+        play: (String(c.play_store_url || '') || ENV_PLAY || '') || null,
+        app: (String(c.app_store_url || '') || ENV_APP || '') || null,
+      });
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, []);
+  return links;
 }
 
 const STEPS = [
@@ -33,6 +54,7 @@ const FAQ = [
 ];
 
 export default function Home() {
+  const store = useStoreLinks();
   return (
     <Page>
       <Seo title="Gambia Number Migrator | Update contacts safely" description="GNM helps individuals, businesses and institutions safely update eligible Gambian contacts from 7 digits to the new 9-digit format." />
@@ -179,9 +201,11 @@ export default function Home() {
               <p>Download GNM and update eligible contacts safely, quickly and confidently.</p>
             </div>
             <div className="store-btns">
-              <StoreButton url={PLAY_STORE_URL} platform="Google Play" />
-              <StoreButton url={APP_STORE_URL} platform="App Store" />
-              <p style={{ fontSize: '.8rem' }}>Official release links are published here and on the status page.</p>
+              <StoreButton url={store.play} platform="Google Play" />
+              <StoreButton url={store.app} platform="App Store" />
+              <p style={{ fontSize: '.8rem' }}>
+                {store.play || store.app ? 'Tap a badge to install GNM.' : 'Official release links are published here and on the status page.'}
+              </p>
             </div>
           </div>
         </div>

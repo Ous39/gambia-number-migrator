@@ -32,7 +32,7 @@ function providerEnableBlockReason(id: ProviderId, effectiveCurrency: string): s
 
 export const appConfigRouter = Router();
 const configSchema = z.record(z.unknown()).superRefine((value, ctx) => {
-  const allowedKeys = new Set(['subscription_price','currency','free_trial_limit','support_email','support_phone','support_whatsapp','privacy_policy_url','terms_url','free_access_mode','free_access_user_limit','maintenance_mode','minimum_app_version','pricing','announcement_message','rules_about_note','default_feature_unlock_settings','wave_payment_enabled','aps_payment_enabled','cleanup_enabled','cleanup_available_from','cleanup_available_until']);
+  const allowedKeys = new Set(['subscription_price','currency','free_trial_limit','support_email','support_phone','support_whatsapp','privacy_policy_url','terms_url','play_store_url','app_store_url','free_access_mode','free_access_user_limit','maintenance_mode','minimum_app_version','pricing','announcement_message','rules_about_note','default_feature_unlock_settings','wave_payment_enabled','aps_payment_enabled','cleanup_enabled','cleanup_available_from','cleanup_available_until']);
   for (const key of Object.keys(value)) if (!allowedKeys.has(key)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: [key], message: 'Unknown configuration key' });
   if ('subscription_price' in value) {
     const price = Number(value.subscription_price);
@@ -50,7 +50,7 @@ const configSchema = z.record(z.unknown()).superRefine((value, ctx) => {
     if (!Number.isInteger(limit) || limit < 0 || limit > 10000) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['free_trial_limit'], message: 'Free trial limit must be between 0 and 10,000' });
   }
   if ('currency' in value && value.currency !== 'GMD') ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['currency'], message: 'Currency must be GMD' });
-  for (const key of ['privacy_policy_url', 'terms_url'] as const) {
+  for (const key of ['privacy_policy_url', 'terms_url', 'play_store_url', 'app_store_url'] as const) {
     const raw = String(value[key] || '');
     if (raw && !/^https:\/\//i.test(raw)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: [key], message: 'Use a full HTTPS URL' });
   }

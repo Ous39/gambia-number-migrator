@@ -9,6 +9,8 @@ const fields = [
   ['support_whatsapp', 'Support WhatsApp', 'tel', '+220 000 0000'],
   ['privacy_policy_url', 'Privacy policy URL', 'url', 'https://your-domain.gm/privacy'],
   ['terms_url', 'Terms URL', 'url', 'https://your-domain.gm/terms'],
+  ['play_store_url', 'Google Play listing URL', 'url', 'https://play.google.com/store/apps/details?id=gm.oceanbrown.gnm'],
+  ['app_store_url', 'Apple App Store listing URL', 'url', 'https://apps.apple.com/app/id0000000000'],
   ['announcement_message', 'In-app announcement', 'text', 'Welcome to Gambia Number Migrator'],
   ['rules_about_note', 'Rules & About note (Settings screen)', 'text', 'Optional extra note shown under Rules & About in the app. Leave blank to hide.'],
 ] as const;
@@ -54,6 +56,7 @@ export default function AppConfig() {
       <div className="formGrid">{fields.map(([key, label, type, placeholder]) => <label key={key}>{label}<input className="input" type={type} min={type === 'number' ? 1 : undefined} step={type === 'number' ? 1 : undefined} placeholder={placeholder} value={String(config[key] ?? '')} onChange={(e) => change(key, e.target.value, type)} /></label>)}</div>
       <p className="configHint"><strong>Price scope:</strong> this amount is for the Contact Migration Pass only. Future products such as eSIMs should use separate product and price keys.</p>
       <p><small>Use full HTTPS links. WhatsApp numbers should include country code, for example +220.</small></p>
+      <p className="configHint"><strong>Store links:</strong> set the Google Play / App Store URLs once the app is published. The website download buttons become active and open the store; leave blank to show “Coming soon”.</p>
       <hr />
       <h2>Approved payment wallets</h2>
       <p>Only enable a wallet after OceanBrown has a signed/confirmed arrangement, production credentials, approved callback rules and a successful end-to-end test. Disabled wallets are hidden from users and rejected by the API.</p>

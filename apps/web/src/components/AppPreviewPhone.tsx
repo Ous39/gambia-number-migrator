@@ -5,9 +5,10 @@ import { useEffect, useState } from 'react';
 const SHOTS = [
   { src: '/screens/dashboard.png', label: 'Dashboard' },
   { src: '/screens/scan.png', label: 'Scan complete' },
-  { src: '/screens/preview.webp', label: 'Preview changes' },
   { src: '/screens/history.png', label: 'History' },
   { src: '/screens/settings.png', label: 'Privacy & settings' },
+  // 'Preview changes' is intentionally omitted — that screen shows real contact
+  // names/numbers. Add a screenshot taken with demo/redacted contacts to restore it.
 ];
 
 export function AppPreviewPhone() {

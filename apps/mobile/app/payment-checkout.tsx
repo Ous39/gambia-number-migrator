@@ -206,7 +206,7 @@ export default function PaymentCheckout() {
                         onPress={() => setProvider(item)}
                         style={{
                           flex: 1,
-                          minHeight: 92,
+                          minHeight: 76,
                           borderRadius: 20,
                           alignItems: 'center',
                           justifyContent: 'center',
@@ -216,7 +216,7 @@ export default function PaymentCheckout() {
                         }}
                       >
                         {active ? <View style={{ position: 'absolute', right: 8, top: 8, width: 24, height: 24, borderRadius: 12, backgroundColor: itemTone.fg, alignItems: 'center', justifyContent: 'center' }}><AppIcon name="check" color={colors.white} size={14} /></View> : null}
-                        <View style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: itemTone.fg, alignItems: 'center', justifyContent: 'center' }}>
+                        <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: itemTone.fg, alignItems: 'center', justifyContent: 'center' }}>
                           {item === 'aps' ? <Text style={{ color: colors.white, fontWeight: '900', fontSize: 15 }}>APS</Text> : <AppIcon name="phone" color={colors.white} size={20} />}
                         </View>
                         <Text style={{ color: colors.text, fontSize: 16, fontWeight: '900', marginTop: 6 }}>{itemMeta.title}</Text>
@@ -319,7 +319,7 @@ export default function PaymentCheckout() {
               </View>
             )}
           </Card>
-          {step === 'phone' ? <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, marginTop: 10 }}><AppIcon name="shield" color={colors.softText} size={15} /><Text style={{ color: colors.softText, fontSize: 12, fontWeight: '700' }}>Secure payment · Contacts stay private</Text></View> : null}
+          {step === 'phone' ? <Text style={{ color: colors.softText, fontSize: 12, fontWeight: '700', textAlign: 'center', marginTop: 8 }}>Secure payment · Contacts stay private</Text> : null}
         </Section>
       ) : (
         <Section title="Payment receipt" style={{ marginTop: 16 }}>
@@ -355,34 +355,11 @@ function PaymentHero({ amount }: { amount: number }) {
   return (
     <View style={{ borderRadius: 28, overflow: 'hidden', backgroundColor: colors.brandTop, marginBottom: 0, borderWidth: 1, borderColor: colors.border }}>
       <View style={{ position: 'absolute', right: -72, top: -76, width: 200, height: 200, borderRadius: 100, backgroundColor: colors.brandBubble }} />
-      <View style={{ paddingVertical: 18, paddingHorizontal: 20, alignItems: 'center' }}>
-        <Text style={{ color: colors.white, fontSize: 46, lineHeight: 52, fontWeight: '900', letterSpacing: -1.2 }}>D{amount}</Text>
-        <Text style={{ color: 'rgba(255,255,255,0.82)', fontWeight: '700', marginTop: 3 }}>One-time contact migration payment</Text>
+      <View style={{ paddingVertical: 12, paddingHorizontal: 18, alignItems: 'center' }}>
+        <Text style={{ color: colors.white, fontSize: 36, lineHeight: 42, fontWeight: '900', letterSpacing: -1 }}>D{amount}</Text>
+        <Text style={{ color: 'rgba(255,255,255,0.82)', fontWeight: '700', fontSize: 12 }}>One-time migration pass</Text>
       </View>
     </View>
-  );
-}
-
-function StepTracker({ step }: { step: Step }) {
-  const activeIndex = step === 'phone' ? 1 : step === 'otp' ? 2 : 3;
-  const labels = ['Method', 'Details', 'Verify', 'Success'];
-  const { colors } = useAppTheme();
-  return (
-    <Card style={{ padding: 14, borderRadius: 24 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-        {labels.map((label, idx) => {
-          const active = idx <= activeIndex;
-          return (
-            <View key={label} style={{ flex: 1, alignItems: 'center' }}>
-              <View style={{ width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: active ? colors.primary : colors.surface3, borderWidth: 1, borderColor: active ? colors.primary : colors.border }}>
-                <Text style={{ color: active ? colors.white : colors.softText, fontWeight: '900' }}>{idx + 1}</Text>
-              </View>
-              <Text numberOfLines={1} style={{ color: active ? colors.primary : colors.softText, marginTop: 6, fontSize: 11, fontWeight: '900' }}>{label}</Text>
-            </View>
-          );
-        })}
-      </View>
-    </Card>
   );
 }
 

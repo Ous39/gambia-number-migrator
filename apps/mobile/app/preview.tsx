@@ -145,7 +145,7 @@ export default function Preview() {
             // allowance-sync failure must not misreport the migration as failed.
             if (authorization?.access === 'trial') await settleMigrationAllowance(selectedItems.length, succeeded).catch(() => undefined);
             const failureSummary = ((result as any).failureDetails || []).slice(0, 3).map((item: any) => `${item.contactName}: ${item.reason}`).join(' | ');
-            router.replace({ pathname: '/complete', params: { total: String(selectedItems.length), updated: String((result as any).added || (result as any).replaced || 0), skipped: String((result as any).skipped || 0), failed: String((result as any).failed || 0), backupId: String((result as any).backupId || ''), failureSummary } });
+            router.replace({ pathname: '/complete', params: { total: String(selectedItems.length), updated: String((result as any).added || (result as any).replaced || 0), copied: String((result as any).copied || 0), skipped: String((result as any).skipped || 0), failed: String((result as any).failed || 0), backupId: String((result as any).backupId || ''), failureSummary } });
           } catch (e: any) {
             const paymentNeeded = /premium|payment|trial/i.test(e?.message || '');
             showDialog({ title: paymentNeeded ? 'Full unlock required' : 'Migration paused safely', message: e?.message || 'Could not update contacts. Re-select the same contacts to resume from the last checkpoint.', tone: paymentNeeded ? 'warning' : 'danger', icon: paymentNeeded ? 'shield' : 'warning', actions: paymentNeeded ? [{ text: 'Cancel', variant: 'secondary' }, { text: 'Go to Payment', onPress: () => router.push('/payment') }] : [{ text: 'OK' }] });

@@ -11,6 +11,8 @@ import Updates from './pages/Updates';
 import UpdatePost from './pages/UpdatePost';
 import TeamProfile from './pages/TeamProfile';
 import DataDeletion from './pages/DataDeletion';
+import Refunds from './pages/Refunds';
+import PaymentResult from './pages/PaymentResult';
 
 function ScrollManager() {
   const { pathname, hash } = useLocation();
@@ -39,6 +41,9 @@ export default function App() {
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/terms" element={<Terms />} />
         <Route path="/data-deletion" element={<DataDeletion />} />
+        <Route path="/refunds" element={<Refunds />} />
+        <Route path="/payment/success" element={<PaymentResult variant="success" />} />
+        <Route path="/payment/error" element={<PaymentResult variant="error" />} />
         <Route path="/team/:id" element={<TeamProfile />} />
         <Route path="*" element={<Home />} />
       </Routes>

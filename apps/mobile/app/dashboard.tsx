@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { Linking, Platform, RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 import { getRecommendedUpdateMode, getTransitionStatus, hasApprovedMigrationRules } from '@gnm/shared';
@@ -11,10 +11,21 @@ import { SCAN_SCHEMA_VERSION, scanContacts } from '../src/services/contactsServi
 import { getJson, keys, setJson } from '../src/services/storage';
 import { getTone, useAppTheme, useResponsive } from '../src/appTheme';
 import { getAccessStatus, type AccessStatus } from '../src/services/unlockService';
+import { getDeviceInfo } from '../src/services/deviceService';
 import { cleanupAvailability, failOperation, finishOperation, getOperationJob, startOperation, updateOperation } from '../src/services/operationService';
 
 function formatNumber(n: number) {
   return Number(n || 0).toLocaleString();
+}
+
+/** True when `current` is a lower version than `minimum` (numeric dotted compare). */
+function versionBelow(current: string, minimum: string) {
+  const a = String(current).split('.').map((n) => parseInt(n, 10) || 0);
+  const b = String(minimum).split('.').map((n) => parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(a.length, b.length); i += 1) {
+    if ((a[i] || 0) !== (b[i] || 0)) return (a[i] || 0) < (b[i] || 0);
+  }
+  return false;
 }
 
 export default function Dashboard() {
@@ -31,6 +42,7 @@ export default function Dashboard() {
   const [access, setAccess] = useState<AccessStatus | null>(null);
   const [operation, setOperation] = useState<any>(null);
   const [cleanupAccess, setCleanupAccess] = useState({ available: false, reason: 'Cleanup is unavailable.' });
+  const [updateNotice, setUpdateNotice] = useState<{ show: boolean; storeUrl: string | null }>({ show: false, storeUrl: null });
 
   async function load() {
     const [syncedRules, syncedTransition, config, savedScan, accessStatus, savedOperation] = await Promise.all([
@@ -46,6 +58,9 @@ export default function Dashboard() {
     setAccess(accessStatus);
     setOperation(savedOperation);
     setCleanupAccess(cleanupAvailability(config));
+    const minVersion = String((config as any).minimum_app_version || '').replace(/[^0-9.]/g, '');
+    const storeUrl = String((Platform.OS === 'ios' ? (config as any).app_store_url : (config as any).play_store_url) || '') || null;
+    setUpdateNotice({ show: Boolean(minVersion) && versionBelow(getDeviceInfo().appVersion, minVersion), storeUrl });
     const scanIsCurrent = Boolean(savedScan && hasApprovedMigrationRules(syncedRules) && savedScan.rulesVersion === syncedRules.versionNumber && savedScan.schemaVersion === SCAN_SCHEMA_VERSION);
     setScan(scanIsCurrent ? savedScan : null);
     if (savedScan && !scanIsCurrent) await setJson(keys.scan, null);
@@ -163,6 +178,15 @@ export default function Dashboard() {
             <MiniBlueStat label="Cleanup" value={formatNumber(metrics.cleanup)} icon="cleanup" />
           </View>
         </Card>
+
+        {updateNotice.show ? (
+          <View style={{ marginBottom: 12 }}>
+            <NoticeCard title="Update available" text="A newer version of GNM is required for the latest official migration rules and fixes. Please update from your app store." tone="warning" icon="warning" />
+            {updateNotice.storeUrl ? (
+              <Button title="Open app store" icon="right" variant="secondary" onPress={() => { void Linking.openURL(updateNotice.storeUrl as string); }} style={{ marginTop: 8, minHeight: 50, borderRadius: 16 }} />
+            ) : null}
+          </View>
+        ) : null}
 
         <View style={{ flexDirection: r.contentWidth > 340 ? 'row' : 'column', gap: 10, marginBottom: 14 }}>
           <Button title={loading ? 'Scanning...' : scan ? 'View Saved Scan' : 'Scan Contacts'} icon={scan ? 'preview' : 'scan'} loading={loading} disabled={loading} onPress={() => { void doScan(); }} style={{ flex: 1, minHeight: 56, borderRadius: 18 }} />

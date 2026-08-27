@@ -1,73 +1,64 @@
-# GNM — Production Readiness Check (Wave payments branch)
+# GNM — Production Readiness
 
-**Branch:** `feat/wave-checkout-integration` · **Date:** 2026-08-27
-**Scope of this check:** the payments changes on this branch, plus what `pnpm typecheck / test / build`
-and a simulated production boot actually prove. It is **not** a full re-audit of every GNM subsystem —
-for that, see `GNM-v1.0.0-FINAL-AUDIT.md`.
+**Date:** 2026-08-27 · **Branch:** `main` (deployed to the VPS) · supersedes the earlier
+Wave-branch version of this file.
 
-**Verdict:**
-- **Payments code / infra:** ✅ ready to merge and deploy — **with Wave switched off**.
-- **Live Wave payments:** ⛔ NO-GO until the external blockers below are cleared.
-- **Whole-system "fully ready":** ⚠️ mostly, with the non-payment caveats in §3 to confirm before a store/VPS release.
+## Verdict
 
----
-
-## 1. Verified green
-
-| Check | Evidence |
+| Area | Status |
 |---|---|
-| Price is **D25 GMD** everywhere | `app_config.subscription_price = 25` (migration `021`); API `create-intent` and `apps/mobile` both charge from `subscription_price`; new migration `026` also aligns the stale `pricing` blob and any legacy `100` default to 25. |
-| Type safety | `pnpm typecheck` — shared, api, admin, web, mobile all pass, no `any`/`@ts-ignore` added. |
-| Tests | `pnpm test` — api 69 (incl. wave-signature 12, payments-route 11, secrets-hygiene 3, devices-admin-access 5), mobile 43, admin 7, web 6, shared 18. All pass. |
-| Testers can be granted access without Wave | Admin → App configuration → **Campaign mode** (`off` / `first N` / `all`) — existing, unchanged. **And** Admin → Support devices → **Grant full access** per device (`access_source='admin'`, revocable, audited). |
-| Android push code | Verified correct end-to-end (Expo push + FCM v1, tickets, receipts, channel). Delivery needs Firebase credentials — see `ANDROID_PUSH_SETUP.md`; the app id `gm.oceanbrown.gnm` is set, `app.config.js` auto-wires `google-services.json` when present. |
-| Production builds | `pnpm build` — api (`tsc`), admin, web (Vite), mobile (`expo export`) all exit 0. |
-| API boots in production with **Wave disabled** | Simulated `NODE_ENV=production … PAYMENT_PROVIDER_INTEGRATION_READY=false` → loads clean. A disabled provider never blocks boot. |
-| API **refuses to boot** if Wave is "armed" but misconfigured | `PAYMENT_PROVIDER_INTEGRATION_READY=true` with missing/`http` Wave values → throws `Invalid production configuration: …`. |
-| `PAYMENT_TEST_MODE` still cannot be true in production | Existing `env.ts` guard retained. |
-| Entitlement cannot be granted without a verified provider confirmation | Webhook requires valid `Wave-Signature`, matching amount/currency/`client_reference`, `payment_status=succeeded` + `checkout_status=complete`; `verify-otp` is test-mode-only; `confirm-manual` is blocked outside test mode **and** when integration is ready. |
-| A successful payment cannot be downgraded | SQL `status = CASE WHEN status='success' THEN 'success' ELSE $2 END`. |
-| Only the paying device is unlocked | Unlock is scoped to `payments.device_id`; the webhook never creates or unblocks a device. |
-| Duplicate webhooks are inert | Dedup on `event.id` in `payment_webhook_events`; returns `{duplicate:true}`. |
-| Secrets are not committed or shipped to mobile | `secrets-hygiene.test.ts` asserts empty `.env.example` values, no `wave_sn_*` literals, and no `WAVE_*` secret names in `apps/mobile`. |
-| Migration safety | `025` and `026` are forward-only, idempotent, no `DROP`/`DELETE`, and backfill existing rows. `db:migrate` records them in `schema_migrations`. |
-| Store builds unaffected | `EXPO_PUBLIC_DISTRIBUTION_CHANNEL=store` still renders the free-launch screen; no Wave/APS code path. |
-| APS isolated | APS keeps its own provider + interim webhook scheme; nothing Wave-specific leaks into it. |
+| **Backend / API** | ✅ Live on the VPS. 27 migrations applied, `/api/health` green, `/api/public/status` serving. |
+| **Website** (`gnm.oceanbrown.gm`) | ✅ Deployable. Redesigned, brand palette, status/updates/organisations pages, legal + refunds + payment-result pages, admin-managed store & social links. |
+| **Admin** | ✅ App settings and website settings are separated. |
+| **Mobile — free store release** | 🟢 **Ready to build & submit.** No blockers in code. Remaining work is store-console setup + assets — see `STORE_SUBMISSION_CHECKLIST.md`. |
+| **Wave payments** | ⛔ Built, tested, **disabled**. Cannot go live until Wave confirms GMD and issues credentials — `WAVE_INTEGRATION_AUDIT.md` §8, `WAVE_DEPLOYMENT_AND_ROLLBACK.md`. |
+| **APS payments** | ⛔ Provider stub only; no real APS API integrated. Disabled. `ADDING_A_PAYMENT_PROVIDER.md`. |
+
+Verified now: `pnpm typecheck` (shared + 4 apps), `pnpm test` (api 69, mobile 43, admin 7, web 6,
+shared 18 = **143**), `pnpm build` (all apps).
 
 ---
 
-## 2. External blockers for **live** Wave (all must be cleared)
+## 1. Green
 
-1. **Wave confirms `currency: "GMD"`** is accepted by the Checkout API for a Gambia business wallet (public docs show only XOF).
-2. Wave issues a **production API key** (Checkout scope, request signing on), a **request-signing secret**, and a **webhook signing secret**.
-3. VPS **static egress IP** added to the API key's allow-list; the 15 Wave webhook **source IPs** allow-listed inbound (Nginx/firewall).
-4. Real values set in `.env.production`; `PAYMENT_PROVIDER_INTEGRATION_READY=true`; API restarts cleanly.
+- API boots in production with payments disabled; **refuses to boot** if `PAYMENT_PROVIDER_INTEGRATION_READY=true` and the Wave config is incomplete or non-HTTPS.
+- `PAYMENT_TEST_MODE` cannot be true in production (env guard).
+- Entitlement is granted only on a verified provider confirmation (signature + amount + currency + reference + `succeeded`/`complete`); a `success` can't be downgraded; only the paying device is unlocked; duplicate webhooks are inert.
+- No Wave/APS in `store`-channel mobile builds — free-launch screen only, no IAP path.
+- Testers can be granted access without any provider: Admin → Campaign mode, or Admin → Support devices → Grant full access (per device, revocable, audited).
+- Migrations `001–027` are forward-only / idempotent; `025–027` applied cleanly on the VPS.
+- Secrets: none committed, none in the mobile bundle (`secrets-hygiene.test.ts`).
+- Web: legal pages (`/privacy`, `/terms`, `/refunds`, `/data-deletion`) and `/payment/success` + `/payment/error` routes exist.
+
+## 2. Blockers for LIVE Wave (unchanged)
+
+1. Wave confirms `currency: "GMD"` for a Gambia business wallet.
+2. Wave issues production API key + request-signing secret + webhook secret.
+3. VPS static egress IP allow-listed on the key; Wave's 15 webhook source IPs allow-listed inbound.
+4. Real `WAVE_*` in `.env.production`; `PAYMENT_PROVIDER_INTEGRATION_READY=true`; API restarts clean.
 5. `GET /admin/payments/health` shows Wave `configured: true`.
-6. One successful **sandbox / live end-to-end**: create → pay → signed webhook → unlock → reconcile, plus the negative cases in `WAVE_DEPLOYMENT_AND_ROLLBACK.md` §4.
+6. One successful sandbox end-to-end (create → pay → signed webhook → unlock → reconcile).
 
-Until then, the `wave_payment_enabled` admin toggle is rejected by the backend with the exact missing item.
+Send `WAVE_API_ONBOARDING_REQUEST.md` to Wave to start.
 
----
+## 3. Should fix (non-blocking)
 
-## 3. Non-payment items to confirm before a full release
-
-These are **not** introduced by this branch; noting them so "ready for production" is an informed decision.
-
-| Area | Status / action |
+| Item | Notes |
 |---|---|
-| `.env.production` (VPS) | The copy in this workspace is a UTF-16 placeholder stub. The real file on the VPS must contain a strong `JWT_SECRET` (≥32 chars, non-placeholder), `DATABASE_URL`, `CORS_ORIGIN` = the real admin origin, and (when arming Wave) the full `WAVE_*` block. It is git-ignored — never commit it. |
-| Firebase / push | Android push delivery needs `apps/mobile/google-services.json` + an FCM v1 service-account key in EAS. Follow `ANDROID_PUSH_SETUP.md`, then rebuild. In-app completion notifications work now; remote push stays off until the credentials are added. Not a payment blocker. |
-| Migrations on prod DB | Run `025` + `026` against a **restored copy of production** first (`WAVE_DEPLOYMENT_AND_ROLLBACK.md` §2). Could not be executed here (no Docker/Postgres in this environment). |
-| Device attestation | Registration abuse protection is per-IP rate limiting only (documented `TODO` for App Attest / Play Integrity). Accepted risk at v1.0.0. |
-| Legal pages | `https://gnm.oceanbrown.gm/privacy`, `/terms`, and a new `/refunds` must be live and reachable before Wave onboarding and store review. |
-| CI | No `.github/workflows` — `pnpm typecheck && pnpm test && pnpm build` are run manually. Consider adding a CI gate. |
-| Store policy | Wave must stay out of App Store / Google Play builds unless OceanBrown has written platform approval (`WAVE_ONBOARDING.md` §5). |
-
----
+| **Homepage screenshot weight** | `apps/web/public/screens/*` are ~400 KB PNGs, 5 loaded eagerly (~2 MB). Convert to WebP (~60 KB) or lazy-load all but the first. Matters for Gambian mobile data. No image tooling in this environment — do it locally with `cwebp` / an online converter, keep the same filenames. |
+| **Android push** | Non-functional until Firebase `google-services.json` + FCM v1 key are added (`ANDROID_PUSH_SETUP.md`). In-app notifications work. Not a store blocker. |
+| **iOS push** | Add an APNs key via `eas credentials` (managed). |
+| **iOS privacy manifest** | Rely on Expo SDK 54 + module defaults; run `npx expo-doctor` and check the first EAS build for a "required reason" flag. |
+| **Device attestation** | Registration abuse is per-IP rate limiting only (documented `TODO` in `app.ts`). Accepted risk. Real fix = App Attest / Play Integrity. |
+| **`.env.production` (VPS)** | Must hold a strong non-placeholder `JWT_SECRET`, real `DATABASE_URL`, and `CORS_ORIGIN` = the admin origin. The API is booting in production, so this is presumably in place — verify `JWT_SECRET` length ≥ 32 and non-placeholder. |
+| **Mobile tests** | Service-layer only (43). No screen/flow tests (e.g. payment-checkout). |
+| **`pricing` config blob** | Migration `026` leaves `pricing.bulk_unlock` at `100` due to statement order; harmless — nothing reads it, the charge path uses `subscription_price` (= 25). |
 
 ## 4. Recommendation
 
-Merge `feat/wave-checkout-integration` and deploy it now — it is safe with Wave disabled and
-tightens several existing weaknesses. Do **not** enable live Wave payments until every item in §2
-is cleared and the §3 VPS/legal items are confirmed. Follow `WAVE_DEPLOYMENT_AND_ROLLBACK.md` for
-the exact ordered rollout, and send `WAVE_API_ONBOARDING_REQUEST.md` to Wave to start §2.
+- **Ship the free store release now.** Follow `STORE_SUBMISSION_CHECKLIST.md`. No payment
+  integration is required for it.
+- **Keep Wave/APS disabled** until §2 is cleared; the backend enforces this regardless of the
+  admin toggle.
+- Deployment / rollback for the API and website: `WAVE_DEPLOYMENT_AND_ROLLBACK.md`,
+  `RELEASE_RUNBOOK.md`.

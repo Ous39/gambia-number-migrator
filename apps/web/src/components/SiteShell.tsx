@@ -97,6 +97,7 @@ export function SiteFooter() {
             <h4>Legal</h4>
             <Link to="/privacy">Privacy</Link>
             <Link to="/terms">Terms</Link>
+            <Link to="/refunds">Refunds</Link>
             <Link to="/data-deletion">Data deletion</Link>
             <a href="https://oceanbrown.gm" target="_blank" rel="noreferrer">OceanBrown ↗</a>
           </div>

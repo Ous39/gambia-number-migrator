@@ -245,13 +245,8 @@ export default function PaymentCheckout() {
                         }}
                       >
                         {active ? <View style={{ position: 'absolute', right: 8, top: 8, width: 24, height: 24, borderRadius: 12, backgroundColor: itemTone.fg, alignItems: 'center', justifyContent: 'center' }}><AppIcon name="check" color={colors.white} size={14} /></View> : null}
-<<<<<<< HEAD
                         <View style={{ width: 48, height: 48, borderRadius: 16, backgroundColor: colors.white, borderWidth: 1, borderColor: itemTone.border, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                           <Image source={item === 'aps' ? require('../assets/aps-logo.png') : require('../assets/wave-logo.png')} resizeMode="contain" style={{ width: 44, height: 44 }} accessibilityLabel={`${itemMeta.title} logo`} />
-=======
-                        <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: itemTone.fg, alignItems: 'center', justifyContent: 'center' }}>
-                          {item === 'aps' ? <Text style={{ color: colors.white, fontWeight: '900', fontSize: 15 }}>APS</Text> : <AppIcon name="phone" color={colors.white} size={20} />}
->>>>>>> caf642300d18bdafaf97e0019a2a51dfed96b56c
                         </View>
                         <Text style={{ color: colors.text, fontSize: 16, fontWeight: '900', marginTop: 6 }}>{itemMeta.title}</Text>
                       </TouchableOpacity>

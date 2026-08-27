@@ -50,11 +50,7 @@ export function getDeviceInfo() {
     osName: Device.osName ?? null,
     osVersion: Device.osVersion ?? null,
     platform: Platform.OS,
-<<<<<<< HEAD
     appVersion: Application.nativeApplicationVersion ?? '1.0.0',
     buildNumber: Application.nativeBuildVersion ?? null
-=======
-    appVersion: Application.nativeApplicationVersion ?? '2.8.9'
->>>>>>> caf642300d18bdafaf97e0019a2a51dfed96b56c
   };
 }

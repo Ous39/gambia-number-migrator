@@ -139,7 +139,6 @@ export default function Preview() {
             const operation = mode === 'replace' ? 'replace_update' : 'duplicate_add';
             const sameResumableJob = existingJob?.status === 'running' && existingJob?.operation === operation && selectedItems.every((item) => existingJob.selectedKeys?.includes(candidateKey(item)));
             const authorization = sameResumableJob ? null : await authorizeMigration(selectedItems.length, mode);
-<<<<<<< HEAD
             await startOperation('migration', mode === 'replace' ? 'Replacing selected contact numbers' : 'Adding new contact numbers', selectedItems.length, '/preview');
             const onProgress = (progress: any) => { setMigrationProgress(progress); void updateOperation(progress); };
             const shouldPause = () => pauseRequested.current;
@@ -156,16 +155,6 @@ export default function Preview() {
               `${succeeded.toLocaleString()} updated · ${Number((result as any).failed || 0).toLocaleString()} failed`,
               { screen: 'history' },
             );
-=======
-            const onProgress = (progress: any) => setMigrationProgress(progress);
-            const shouldPause = () => pauseRequested.current;
-            const result = mode === 'replace' ? await applyReplace(selectedItems, onProgress, shouldPause) : await applyDuplicateAdd(selectedItems, onProgress, shouldPause);
-            const succeeded = Number((result as any).added || (result as any).replaced || 0);
-            // Contact writes are already complete at this point. A temporary
-            // allowance-sync failure must not misreport the migration as failed.
-            if (authorization?.access === 'trial') await settleMigrationAllowance(selectedItems.length, succeeded).catch(() => undefined);
-            const failureSummary = ((result as any).failureDetails || []).slice(0, 3).map((item: any) => `${item.contactName}: ${item.reason}`).join(' | ');
->>>>>>> caf642300d18bdafaf97e0019a2a51dfed96b56c
             router.replace({ pathname: '/complete', params: { total: String(selectedItems.length), updated: String((result as any).added || (result as any).replaced || 0), copied: String((result as any).copied || 0), skipped: String((result as any).skipped || 0), failed: String((result as any).failed || 0), backupId: String((result as any).backupId || ''), failureSummary } });
           } catch (e: any) {
             await failOperation(e?.message || 'Migration paused or failed.');

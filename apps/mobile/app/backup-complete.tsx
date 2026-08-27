@@ -31,12 +31,8 @@ export default function BackupComplete() {
         {backupId ? <SummaryRow label="Backup ID" value={`${backupId.slice(0, 18)}…`} color={colors.muted} /> : null}
       </Card>
 
-<<<<<<< HEAD
       <View style={{ flex: 1, minHeight: 10 }} />
       <Button title="Preview Changes" icon="preview" onPress={() => router.replace({ pathname: '/preview', params: { filter: 'Needs Update' } })} style={{ marginTop: 10 }} />
-=======
-      <Button title="Preview Changes" icon="preview" onPress={() => router.replace({ pathname: '/preview', params: { filter: 'Needs Update' } })} style={{ marginTop: 14 }} />
->>>>>>> caf642300d18bdafaf97e0019a2a51dfed96b56c
       <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
         <Button title="Dashboard" variant="secondary" icon="home" onPress={() => router.replace('/dashboard')} style={{ flex: 1 }} />
         <Button title="Backups" variant="secondary" icon="backup" onPress={() => router.replace('/backup')} style={{ flex: 1 }} />

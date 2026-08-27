@@ -97,15 +97,11 @@ export async function settleMigrationAllowance(reserved: number, succeeded: numb
   const completed = Math.max(0, Math.floor(succeeded));
   if (!completed) return;
   const deviceId = await getDeviceFingerprint();
-<<<<<<< HEAD
   const previousPending = Math.max(0, Math.floor(await getJson<number>(keys.pendingTrialUsage, 0)));
   const total = previousPending + completed;
   await setJson(keys.pendingTrialUsage, total);
   await consumeTrialAllowance(deviceId, total);
   await setJson(keys.pendingTrialUsage, 0);
-=======
-  await consumeTrialAllowance(deviceId, completed);
->>>>>>> caf642300d18bdafaf97e0019a2a51dfed96b56c
   await getAccessStatus();
 }
 

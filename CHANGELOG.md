@@ -1,5 +1,57 @@
 # Changelog
 
+## GNM — 2026-08-27 (Wave Checkout integration)
+
+Full Wave payment-integration audit plus a production-ready implementation. See
+`WAVE_INTEGRATION_AUDIT.md`, `WAVE_ONBOARDING.md` and `WAVE_DEPLOYMENT_AND_ROLLBACK.md`.
+**Ships disabled** — live Wave is blocked in code until Wave confirms GMD support and issues
+production credentials.
+
+**Backend**
+- New provider layer `apps/api/src/services/payments/` (`types.ts`, `signature.ts`, `httpRetry.ts`,
+  `waveProvider.ts`, `apsProvider.ts`, `index.ts`) behind a clean `PaymentProvider` interface.
+  APS keeps its own separate interim signature/event scheme.
+- `waveProvider` calls the real Wave Checkout API: `POST /v1/checkout/sessions` with
+  `Authorization: Bearer` + `Wave-Signature: t=,v1=` request signing (HMAC-SHA256 over
+  `` `${unixSeconds}` + rawBody ``, exact serialized body reused). `GET /v1/checkout/sessions/:id`
+  for reconciliation. Outbound timeout + exponential backoff for 429 / transient 5xx.
+- `routes/payments.ts` rewritten: `create-intent` creates a Wave session and returns
+  `wave_launch_url`; server is the sole price authority. New `/payments/webhook/wave` verifies the
+  real `Wave-Signature` (multi-`v1` rotation, 300 s past / 30 s future, timing-safe), parses
+  `{id,type,data}`, dedups on `event.id`, validates amount/currency/`client_reference`, requires
+  `payment_status=succeeded` + `checkout_status=complete`, and unlocks only the payment's own
+  device via a monotonic state machine (a `success` can never be downgraded). `/payments/webhook/aps`
+  kept separate. `:reference/status` reconciles a stale pending payment straight from Wave.
+- `config/env.ts`: `WAVE_API_BASE_URL/API_KEY/API_SIGNING_SECRET/WEBHOOK_SECRET[_PREVIOUS]/CURRENCY/`
+  `SUCCESS_URL/ERROR_URL/REQUEST_TIMEOUT_MS/WEBHOOK_TOLERANCE_SECONDS` + `waveConfigHealth()`.
+  Production boot fails if `PAYMENT_PROVIDER_INTEGRATION_READY=true` and Wave config is incomplete;
+  Wave *disabled* never blocks boot.
+- `routes/appConfig.ts`: `wave_payment_enabled`/`aps_payment_enabled` can only be switched on when
+  the backend proves it is safe (test mode off, integration ready, credentials present, currency
+  matches, HTTPS). New read-only `GET /admin/payments/health` (never returns secrets).
+- `app.ts`: dropped the obsolete generic `X-Webhook-*` CORS headers.
+
+**Database**
+- `database/migrations/025_wave_checkout_fields.sql` — forward-only, idempotent, no drops/deletes.
+  Adds `wave_checkout_session_id`, `wave_transaction_id`, `client_reference`, `internal_reference`,
+  `checkout_status`, `payment_status`, `last_provider_error_code/message`, `webhook_event_id`,
+  `provider_metadata_json`, `expired_at`; `payment_webhook_events.event_type`; backfills existing rows.
+
+**Mobile**
+- `app/payment-checkout.tsx` — live checkout now opens `wave_launch_url` in the **system browser**
+  (`Linking.openURL`, never a WebView) and a new `processing` step polls the protected status
+  endpoint; access unlocks only on a server-confirmed `success`. The local test-OTP UI is shown
+  only when the API returns a `testOtp` (test mode). Price fallback D100 → D25. Store builds
+  unchanged (free-launch, no Wave).
+
+**Admin**
+- Payments page shows a provider-configuration health panel (`configured` / `missing` / currency /
+  key tail — no secrets) and hides "Confirm test" outside test mode.
+
+**Tests**
+- `apps/api/tests/wave-signature.test.ts` (12), `payments-route.test.ts` (11),
+  `secrets-hygiene.test.ts` (3). `pnpm typecheck`, `pnpm test`, `pnpm build` all green.
+
 ## GNM 1.0.0 — 2026-08-27 (release-identity, store-policy audit, campaign audit trail, header consolidation)
 
 Full production-readiness pass for Google Play Internal Testing, Apple TestFlight and Contabo VPS deployment. See `GNM-v1.0.0-FINAL-AUDIT.md` for the complete report, `GNM-v1.0.0-VPS-DEPLOYMENT.md`, `GNM-v1.0.0-GOOGLE-PLAY-INTERNAL-TESTING.md` and `GNM-v1.0.0-APPLE-TESTFLIGHT.md` for store/deployment procedures.

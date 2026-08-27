@@ -1,9 +1,34 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { query, withTransaction } from '../db/pool';
+import { env } from '../config/env';
 import { requireAdmin } from '../middleware/auth';
 import { audit } from '../services/auditService';
+import { providerHealth, ProviderId } from '../services/payments';
 import { FALLBACK_APP_CONFIG, isDbUnavailable, withApiFallback } from '../utils/fallbacks';
+
+/**
+ * A provider may only be switched ON when the backend can prove it is safe to
+ * take live money: test mode off, integration flag on, credentials + signing +
+ * webhook secret present, currency confirmed and matching, and HTTPS endpoints.
+ * Returns a human-readable reason when blocked, or null when allowed.
+ */
+function providerEnableBlockReason(id: ProviderId, effectiveCurrency: string): string | null {
+  if (env.paymentTestMode) return 'Turn PAYMENT_TEST_MODE off before enabling a live wallet.';
+  if (!env.paymentProviderIntegrationReady) return 'Set PAYMENT_PROVIDER_INTEGRATION_READY=true on the backend first.';
+  const health = providerHealth(id);
+  if (!health.configured) return `Backend ${id.toUpperCase()} configuration is incomplete: ${health.missing.join(', ')}.`;
+  if (id === 'wave') {
+    if (!env.waveCurrency) return 'WAVE_CURRENCY is not set on the backend.';
+    if (env.waveCurrency !== String(effectiveCurrency).toUpperCase()) {
+      return `WAVE_CURRENCY (${env.waveCurrency}) does not match the app currency (${effectiveCurrency}).`;
+    }
+  }
+  if (env.publicApiBaseUrl && !/^https:\/\//i.test(env.publicApiBaseUrl)) {
+    return 'The production API base URL must use HTTPS.';
+  }
+  return null;
+}
 
 export const appConfigRouter = Router();
 const configSchema = z.record(z.unknown()).superRefine((value, ctx) => {
@@ -61,6 +86,20 @@ appConfigRouter.get('/app-config', async (_req, res, next) => {
 appConfigRouter.put('/admin/app-config', requireAdmin, async (req, res, next) => {
   try {
     const body = configSchema.parse(req.body);
+
+    // Guard live-payment activation with backend configuration health.
+    const enabling = (['wave', 'aps'] as ProviderId[]).filter((id) => body[`${id}_payment_enabled`] === true);
+    if (enabling.length) {
+      const current = await configObject();
+      const effectiveCurrency = String(body.currency ?? current.currency ?? 'GMD');
+      for (const id of enabling) {
+        const reason = providerEnableBlockReason(id, effectiveCurrency);
+        if (reason) {
+          return res.status(400).json({ message: `Cannot enable ${id.toUpperCase()} payments. ${reason}` });
+        }
+      }
+    }
+
     await withTransaction(async (client) => {
       for (const [key, value] of Object.entries(body)) {
         await client.query(`INSERT INTO app_config (config_key, config_value) VALUES ($1,$2)

@@ -43,7 +43,9 @@ export function createApp() {
     },
     credentials: false,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Authorization', 'Content-Type', 'X-Device-Secret', 'X-Request-Id', 'X-Webhook-Id', 'X-Webhook-Timestamp', 'X-Webhook-Signature'],
+    // Provider webhooks are server-to-server (no browser, no CORS). Only the
+    // headers the Admin/mobile browsers actually send are advertised here.
+    allowedHeaders: ['Authorization', 'Content-Type', 'X-Device-Secret', 'X-Request-Id'],
   }));
   app.use(rateLimit({ windowMs: 60_000, limit: 200, standardHeaders: 'draft-7', legacyHeaders: false }));
   app.use(express.json({

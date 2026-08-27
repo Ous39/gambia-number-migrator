@@ -2,6 +2,7 @@ GNM app screenshots used in the website hero (portrait, full-device PNG/WebP).
 Cross-fades in this order, Dashboard first:
   dashboard.png   - Home / Dashboard
   scan.png        - Scan Complete
+  preview.jpeg    - Preview Changes (demo/placeholder contacts only)
   history.png     - History
   settings.png    - Privacy & settings
 

@@ -1,5 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, NavLink } from 'react-router-dom';
+import { getAppConfig } from '../api/client';
+import { SocialRow, type SocialPlatform } from './Social';
 
 const NAV = [
   { to: '/#how', label: 'How it works', hash: true },
@@ -59,6 +61,15 @@ export function SiteHeader() {
 }
 
 export function SiteFooter() {
+  const [social, setSocial] = useState<Partial<Record<SocialPlatform, string>>>({});
+  useEffect(() => {
+    let active = true;
+    getAppConfig()
+      .then((c) => { if (active && c.social_links && typeof c.social_links === 'object') setSocial(c.social_links as Partial<Record<SocialPlatform, string>>); })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, []);
+
   return (
     <footer className="site">
       <div className="container">
@@ -66,6 +77,7 @@ export function SiteFooter() {
           <div>
             <Link className="brand" to="/"><img className="brand-logo" src="/logo.png" alt="" width={40} height={40} /><span><b>GNM</b><small>Gambia Number Migrator</small></span></Link>
             <p className="muted" style={{ marginTop: 12, maxWidth: '30ch' }}>A locally built app supporting The Gambia's national telephone numbering transition.</p>
+            <SocialRow links={social} />
           </div>
           <div>
             <h4>Product</h4>

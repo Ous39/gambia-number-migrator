@@ -35,6 +35,9 @@ export default function AppConfig() {
     api<{data: Record<string, number | string | null>}>('/admin/free-access-stats').then((r) => setCampaignStats(r.data)).catch(() => undefined);
   }, []);
   function change(key: string, value: string | boolean, type?: string) { setConfig((current) => ({ ...current, [key]: type === 'number' ? Number(value) : value })); }
+  function changeSocial(platform: string, url: string) {
+    setConfig((current) => ({ ...current, social_links: { ...((current.social_links as Record<string, string>) || {}), [platform]: url } }));
+  }
   async function submit(e: FormEvent) {
     e.preventDefault(); setSaving(true); setMsg('');
     try {
@@ -57,6 +60,26 @@ export default function AppConfig() {
       <p className="configHint"><strong>Price scope:</strong> this amount is for the Contact Migration Pass only. Future products such as eSIMs should use separate product and price keys.</p>
       <p><small>Use full HTTPS links. WhatsApp numbers should include country code, for example +220.</small></p>
       <p className="configHint"><strong>Store links:</strong> set the Google Play / App Store URLs once the app is published. The website download buttons become active and open the store; leave blank to show “Coming soon”.</p>
+      <hr />
+      <h2>Social media links</h2>
+      <p>Full HTTPS profile URLs. Each one you fill in shows as an icon in the website footer; leave blank to hide.</p>
+      <div className="formGrid">
+        {([
+          ['facebook', 'Facebook', 'https://facebook.com/oceanbrown'],
+          ['instagram', 'Instagram', 'https://instagram.com/oceanbrown'],
+          ['x', 'X (Twitter)', 'https://x.com/oceanbrown'],
+          ['linkedin', 'LinkedIn', 'https://linkedin.com/company/oceanbrown'],
+          ['youtube', 'YouTube', 'https://youtube.com/@oceanbrown'],
+          ['tiktok', 'TikTok', 'https://tiktok.com/@oceanbrown'],
+          ['whatsapp', 'WhatsApp', 'https://wa.me/2203631776'],
+        ] as const).map(([key, label, placeholder]) => (
+          <label key={key}>{label}
+            <input className="input" type="url" placeholder={placeholder}
+              value={String((config.social_links as Record<string, string> | undefined)?.[key] ?? '')}
+              onChange={(e) => changeSocial(key, e.target.value)} />
+          </label>
+        ))}
+      </div>
       <hr />
       <h2>Approved payment wallets</h2>
       <p>Only enable a wallet after OceanBrown has a signed/confirmed arrangement, production credentials, approved callback rules and a successful end-to-end test. Disabled wallets are hidden from users and rejected by the API.</p>

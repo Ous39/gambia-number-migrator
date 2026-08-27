@@ -32,7 +32,8 @@ function providerEnableBlockReason(id: ProviderId, effectiveCurrency: string): s
 
 export const appConfigRouter = Router();
 const configSchema = z.record(z.unknown()).superRefine((value, ctx) => {
-  const allowedKeys = new Set(['subscription_price','currency','free_trial_limit','support_email','support_phone','support_whatsapp','privacy_policy_url','terms_url','play_store_url','app_store_url','free_access_mode','free_access_user_limit','maintenance_mode','minimum_app_version','pricing','announcement_message','rules_about_note','default_feature_unlock_settings','wave_payment_enabled','aps_payment_enabled','cleanup_enabled','cleanup_available_from','cleanup_available_until']);
+  const allowedKeys = new Set(['subscription_price','currency','free_trial_limit','support_email','support_phone','support_whatsapp','privacy_policy_url','terms_url','play_store_url','app_store_url','social_links','free_access_mode','free_access_user_limit','maintenance_mode','minimum_app_version','pricing','announcement_message','rules_about_note','default_feature_unlock_settings','wave_payment_enabled','aps_payment_enabled','cleanup_enabled','cleanup_available_from','cleanup_available_until']);
+  const SOCIAL_PLATFORMS = ['facebook','instagram','x','linkedin','youtube','tiktok','whatsapp'];
   for (const key of Object.keys(value)) if (!allowedKeys.has(key)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: [key], message: 'Unknown configuration key' });
   if ('subscription_price' in value) {
     const price = Number(value.subscription_price);
@@ -53,6 +54,22 @@ const configSchema = z.record(z.unknown()).superRefine((value, ctx) => {
   for (const key of ['privacy_policy_url', 'terms_url', 'play_store_url', 'app_store_url'] as const) {
     const raw = String(value[key] || '');
     if (raw && !/^https:\/\//i.test(raw)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: [key], message: 'Use a full HTTPS URL' });
+  }
+  if ('social_links' in value) {
+    const links = value.social_links;
+    if (!links || typeof links !== 'object' || Array.isArray(links)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['social_links'], message: 'Social links must be an object of platform: url' });
+    } else {
+      for (const [platform, url] of Object.entries(links as Record<string, unknown>)) {
+        if (!SOCIAL_PLATFORMS.includes(platform)) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['social_links', platform], message: `Unknown social platform: ${platform}` });
+        }
+        const raw = String(url || '').trim();
+        if (raw && !/^https:\/\//i.test(raw)) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['social_links', platform], message: `${platform}: use a full HTTPS URL` });
+        }
+      }
+    }
   }
   if ('announcement_message' in value && String(value.announcement_message).length > 500) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['announcement_message'], message: 'Announcement must be 500 characters or fewer' });
   if ('rules_about_note' in value && String(value.rules_about_note).length > 500) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['rules_about_note'], message: 'Rules & About note must be 500 characters or fewer' });

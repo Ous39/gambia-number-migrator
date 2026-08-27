@@ -219,6 +219,13 @@ footer.site .muted { color: rgba(255, 255, 255, 0.6); }
 .footer-grid a { display: block; color: rgba(255, 255, 255, 0.78); padding: 4px 0; font-size: .92rem; }
 .footer-grid a:hover { color: #8fc4ff; }
 .footer-bottom { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-top: var(--space-5); padding-top: var(--space-3); border-top: 1px solid rgba(255, 255, 255, 0.14); font-size: .82rem; color: rgba(255, 255, 255, 0.55); }
+.social-row { display: flex; gap: 8px; margin-top: 16px; }
+.social-row a {
+  width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center;
+  color: rgba(255, 255, 255, 0.82); background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14); transition: background .15s ease, color .15s ease, transform .15s ease;
+}
+.social-row a:hover { background: rgba(255, 255, 255, 0.16); color: #fff; transform: translateY(-2px); }
 
 /* hero — navy background, white text (~20% navy target) */
 .hero { position: relative; overflow: hidden; padding-block: var(--space-7); background: var(--navy); }

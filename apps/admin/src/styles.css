@@ -137,3 +137,11 @@ th{position:sticky;top:0;z-index:2;white-space:nowrap}td{line-height:1.5}
   .summaryCard{min-height:86px}.summaryCard b{font-size:23px}
 }
 @media(max-width:380px){.navbarIdentity span{display:none}.adminNavbar{justify-content:flex-start}.navbarActions{margin-left:auto}.main{padding-left:12px;padding-right:12px}}
+
+/* v2.12 — website content: segmented tabs + page eyebrow */
+.pageTitle .eyebrow{margin-bottom:6px}
+.segmentTabs{display:flex;gap:4px;padding:5px;margin-bottom:22px;background:var(--surface);border:1px solid var(--line);border-radius:15px;max-width:640px;overflow-x:auto}
+.segmentTabs button{flex:1;min-width:max-content;display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;background:transparent;color:var(--muted);font-weight:850;font-size:12px;padding:10px 14px;border-radius:11px;white-space:nowrap;transition:background-color 120ms linear,color 120ms linear}
+.segmentTabs button:hover:not(.active){color:var(--text)}
+.segmentTabs button.active{background:var(--card);color:var(--primary);box-shadow:0 4px 14px rgba(0,0,0,.14)}
+@media(max-width:620px){.segmentTabs{max-width:none}.segmentTabs button span{display:none}.segmentTabs button{flex:0 0 auto;padding:10px}}

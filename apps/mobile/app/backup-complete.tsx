@@ -11,37 +11,32 @@ export default function BackupComplete() {
   const params = useLocalSearchParams();
   const total = Number(params.total || 0);
   const backupId = String(params.backupId || '');
-  const size = r.compact ? 128 : 156;
+  const size = r.compact ? 70 : 84;
 
   return (
-    <Screen>
+    <Screen scroll={false}>
       <BackHeader title="Backup Complete" subtitle="Your contacts were saved locally on this device." compact />
-      <View style={{ alignItems: 'center', paddingTop: r.compact ? 18 : 44 }}>
+      <View style={{ alignItems: 'center', paddingTop: r.compact ? 10 : 16 }}>
         <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: colors.successSoft, borderColor: colors.success, borderWidth: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <View style={{ width: size * 0.56, height: size * 0.56, borderRadius: (size * 0.56) / 2, backgroundColor: colors.success, alignItems: 'center', justifyContent: 'center' }}>
-            <AppIcon name="backup" color={colors.white} size={44} />
-          </View>
+          <AppIcon name="backup" color={colors.success} size={32} />
         </View>
-        <Text style={[styles.largeTitle, { marginTop: 24, textAlign: 'center' }]}>Backup Complete!</Text>
-        <Text style={[styles.body, { marginTop: 8, textAlign: 'center' }]}>A safe local copy of your contacts has been created before any migration work.</Text>
+        <Text style={[styles.heading, { marginTop: 10, textAlign: 'center' }]}>Backup complete</Text>
+        <Text style={[styles.small, { marginTop: 4, textAlign: 'center' }]}>Saved privately on this device.</Text>
       </View>
 
-      <Card elevated style={{ marginTop: 24 }}>
-        <Text style={{ color: colors.text, fontSize: 20, fontWeight: '900', marginBottom: 10 }}>Backup Summary</Text>
+      <Card elevated style={{ marginTop: 14, padding: 14 }}>
         <SummaryRow label="Contacts saved" value={total.toLocaleString()} color={colors.success} />
         <SummaryRow label="Storage" value="Local device only" color={colors.primary} />
         <SummaryRow label="Privacy" value="Not uploaded" color={colors.teal} />
         {backupId ? <SummaryRow label="Backup ID" value={`${backupId.slice(0, 18)}…`} color={colors.muted} /> : null}
       </Card>
 
-      <Card style={{ marginTop: 14 }}>
-        <Text style={{ color: colors.text, fontWeight: '900', marginBottom: 8 }}>What you can do now</Text>
-        <Text style={styles.body}>Continue to preview changes, migrate selected contacts, or return to the backup list to restore this backup later.</Text>
-      </Card>
-
-      <Button title="Back to Dashboard" icon="home" onPress={() => router.replace('/dashboard')} style={{ marginTop: 18 }} />
-      <Button title="Preview Changes" variant="secondary" icon="preview" onPress={() => router.replace({ pathname: '/preview', params: { filter: 'Needs Update' } })} style={{ marginTop: 8 }} />
-      <Button title="View Backups" variant="secondary" icon="backup" onPress={() => router.replace('/backup')} style={{ marginTop: 8 }} />
+      <View style={{ flex: 1, minHeight: 10 }} />
+      <Button title="Preview Changes" icon="preview" onPress={() => router.replace({ pathname: '/preview', params: { filter: 'Needs Update' } })} style={{ marginTop: 10 }} />
+      <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+        <Button title="Dashboard" variant="secondary" icon="home" onPress={() => router.replace('/dashboard')} style={{ flex: 1 }} />
+        <Button title="Backups" variant="secondary" icon="backup" onPress={() => router.replace('/backup')} style={{ flex: 1 }} />
+      </View>
     </Screen>
   );
 }
@@ -49,7 +44,7 @@ export default function BackupComplete() {
 function SummaryRow({ label, value, color }: { label: string; value: string | number; color: string }) {
   const { colors, styles } = useAppTheme();
   return (
-    <View style={[styles.rowBetween, { paddingVertical: 10, gap: 12 }]}>
+    <View style={[styles.rowBetween, { paddingVertical: 7, gap: 12 }]}>
       <Text style={{ color: colors.muted, fontSize: 15, fontWeight: '700' }}>{label}</Text>
       <Text numberOfLines={1} style={{ color, fontWeight: '900', fontSize: 16, flexShrink: 1, textAlign: 'right' }}>{value}</Text>
     </View>

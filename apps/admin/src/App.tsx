@@ -12,6 +12,8 @@ import Audit from './pages/Audit';
 import Notifications from './pages/Notifications';
 import SupportDevices from './pages/SupportDevices';
 import Team from './pages/Team';
+import WebsiteContent from './pages/WebsiteContent';
+import Inquiries from './pages/Inquiries';
 
 function Protected() { return getToken() ? <Layout /> : <Navigate to="/login" replace />; }
 export default function App() {
@@ -26,6 +28,8 @@ export default function App() {
       <Route path="/notifications" element={<Notifications />} />
       <Route path="/support-devices" element={<SupportDevices />} />
       <Route path="/app-config" element={<AppConfig />} />
+      <Route path="/website-content" element={<WebsiteContent />} />
+      <Route path="/inquiries" element={<Inquiries />} />
       <Route path="/audit" element={<Audit />} />
       <Route path="/team" element={<Team />} />
     </Route>

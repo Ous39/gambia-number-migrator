@@ -12,7 +12,7 @@ async function main() {
     await pool.query(fs.readFileSync(path.join(dir, file), 'utf8'));
   }
   const initialPassword = process.env.ADMIN_INITIAL_PASSWORD || '';
-  if (initialPassword.length < 12 || initialPassword === 'replace-with-a-strong-password') throw new Error('ADMIN_INITIAL_PASSWORD must be configured with a unique password of at least 12 characters');
+  if (initialPassword.length < 12 || /replace-with|change-me|password/i.test(initialPassword)) throw new Error('ADMIN_INITIAL_PASSWORD must be configured with a unique password of at least 12 characters and must not be a placeholder');
   const hash = await bcrypt.hash(initialPassword, 12);
   const admin = await pool.query(`INSERT INTO admins (username, password_hash, full_name, role, status)
     VALUES ($1,$2,$3,$4,$5)

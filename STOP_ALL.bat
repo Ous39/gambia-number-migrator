@@ -14,6 +14,9 @@ taskkill /FI "WINDOWTITLE eq GNM API - 8089*" /T /F >nul 2>nul
 echo Closing Admin window...
 taskkill /FI "WINDOWTITLE eq GNM Admin - 5173*" /T /F >nul 2>nul
 
+echo Closing Website window...
+taskkill /FI "WINDOWTITLE eq GNM Website - 5174*" /T /F >nul 2>nul
+
 echo Closing Expo Mobile window...
 taskkill /FI "WINDOWTITLE eq GNM Mobile - Expo 8082*" /T /F >nul 2>nul
 

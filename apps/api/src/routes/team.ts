@@ -6,7 +6,7 @@ import { requireAdmin, requireRoles } from '../middleware/auth';
 import { audit } from '../services/auditService';
 
 export const teamRouter = Router();
-const roles = ['owner', 'admin', 'operations', 'finance', 'support', 'viewer'] as const;
+const roles = ['owner', 'admin', 'operations', 'finance', 'support', 'communications', 'viewer'] as const;
 const createSchema = z.object({ username: z.string().trim().min(3).max(60).regex(/^[a-zA-Z0-9._-]+$/), fullName: z.string().trim().min(2).max(100), role: z.enum(roles), password: z.string().min(12).max(200) });
 const updateSchema = z.object({ fullName: z.string().trim().min(2).max(100), role: z.enum(roles), status: z.enum(['active', 'disabled']) });
 const passwordSchema = z.object({ password: z.string().min(12).max(200) });

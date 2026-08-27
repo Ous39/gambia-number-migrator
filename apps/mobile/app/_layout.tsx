@@ -15,12 +15,12 @@ export default function RootLayout() {
   useEffect(() => {
     // Expo Go no longer supports remote push on SDK 53+. Load notifications only
     // in development/production builds so local Expo Go testing stays warning-free.
-    if (Constants.appOwnership === 'expo') return;
+    if (Constants.appOwnership === 'expo' || String((Constants as any).executionEnvironment || '').toLowerCase() === 'storeclient') return;
     let remove: (() => void) | undefined;
     import('expo-notifications').then((Notifications) => {
-      Notifications.getLastNotificationResponseAsync().then((last) => {
-        if (last?.notification) { Notifications.setBadgeCountAsync(0).catch(() => undefined); router.push('/notifications'); }
-      }).catch(() => undefined);
+      // Do not replay an old notification response on every cold start. Expo
+      // retains the last response, which previously made Notifications appear
+      // to be the default page after the app was closed and reopened.
       const subscription = Notifications.addNotificationResponseReceivedListener(() => {
         Notifications.setBadgeCountAsync(0).catch(() => undefined);
         router.push('/notifications');

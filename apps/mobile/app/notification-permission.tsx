@@ -40,7 +40,7 @@ export default function NotificationPermission() {
 
   return (
     <Screen>
-      <TopNav title="NumMigrate GM" />
+      <TopNav title="Gambia Number Migrator" compact />
       <View style={{ paddingTop: responsive.compact ? 18 : 28, paddingBottom: 10 }}>
         <View style={{ alignItems: 'center' }}>
           <View style={{ width: responsive.compact ? 124 : 150, height: responsive.compact ? 124 : 150, borderRadius: responsive.compact ? 62 : 75, backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' }}>

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { query, withTransaction } from '../db/pool';
 import { requireAdmin } from '../middleware/auth';
+import { requireDeviceSecret } from '../middleware/deviceSecret';
 import { audit } from '../services/auditService';
 import crypto from 'node:crypto';
 
@@ -51,9 +52,12 @@ devicesRouter.post('/devices/register', async (req, res, next) => {
 
     const result = await withTransaction(async (client) => {
       await client.query("SELECT pg_advisory_xact_lock(hashtext('gnm-free-access-campaign'))");
+      const existing = await client.query('SELECT id FROM devices WHERE id=$1 LIMIT 1', [b.fingerprint]);
+      const deviceSecret = existing.rowCount ? undefined : crypto.randomBytes(32).toString('hex');
+      const deviceSecretHash = deviceSecret ? crypto.createHash('sha256').update(deviceSecret).digest('hex') : null;
       const saved = await client.query(
-      `INSERT INTO devices (id, device_name, device_model, os_name, os_version, platform, last_ip, app_version)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+      `INSERT INTO devices (id, device_name, device_model, os_name, os_version, platform, last_ip, app_version, device_secret_hash)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
        ON CONFLICT (id) DO UPDATE SET
          device_name=EXCLUDED.device_name,
          device_model=EXCLUDED.device_model,
@@ -64,7 +68,7 @@ devicesRouter.post('/devices/register', async (req, res, next) => {
          app_version=EXCLUDED.app_version,
          updated_at=NOW()
        RETURNING *`,
-      [b.fingerprint, b.deviceName || null, b.deviceModel || null, b.osName || null, b.osVersion || null, b.platform || null, ip, b.appVersion || null]
+      [b.fingerprint, b.deviceName || null, b.deviceModel || null, b.osName || null, b.osVersion || null, b.platform || null, ip, b.appVersion || null, deviceSecretHash]
       );
       const configRows = await client.query("SELECT config_key,config_value FROM app_config WHERE config_key IN ('free_access_mode','free_access_user_limit')");
       const campaign = Object.fromEntries(configRows.rows.map((row) => [row.config_key, row.config_value]));
@@ -75,19 +79,29 @@ devicesRouter.post('/devices/register', async (req, res, next) => {
         const campaignCount = Number((await client.query("SELECT COUNT(*)::int AS count FROM devices WHERE access_source='campaign'")).rows[0]?.count || 0);
         if (mode === 'all' || (mode === 'first_n' && campaignCount < limit)) {
           const granted = await client.query("UPDATE devices SET status='active',access_source='campaign',promotional_access_granted_at=COALESCE(promotional_access_granted_at,NOW()),updated_at=NOW() WHERE id=$1 RETURNING *", [b.fingerprint]);
-          return granted.rows[0];
+          return { device: granted.rows[0], deviceSecret, granted: true, campaignMode: mode, campaignCount: campaignCount + 1, campaignLimit: limit };
         }
       }
-      return device;
+      return { device, deviceSecret, granted: false };
     });
 
+    if (result.granted) {
+      // Not an admin-initiated action, so req.admin is absent and audit() records admin_id=null —
+      // this is the device-registration path, the only place campaign slots are actually consumed.
+      await audit(req, 'campaign_access_granted', 'device', result.device.id, undefined, {
+        mode: result.campaignMode,
+        campaignCount: result.campaignCount,
+        campaignLimit: result.campaignMode === 'first_n' ? result.campaignLimit : null,
+      }).catch(() => undefined);
+    }
+
     const freeTrialLimit = Number(await getConfigValue('free_trial_limit', 0));
-    const subscriptionPrice = Number(await getConfigValue('subscription_price', 100));
+    const subscriptionPrice = Number(await getConfigValue('subscription_price', 25));
     const currency = await getConfigValue('currency', 'GMD');
     const freeAccessMode = String(await getConfigValue('free_access_mode', 'off'));
     const freeAccessUserLimit = Number(await getConfigValue('free_access_user_limit', 100));
     res.set('Cache-Control', 'no-store');
-    res.json({ data: publicDevice(result, { freeTrialLimit, subscriptionPrice, currency, freeAccessMode, freeAccessUserLimit }) });
+    res.json({ data: publicDevice(result.device, { freeTrialLimit, subscriptionPrice, currency, freeAccessMode, freeAccessUserLimit }), ...(result.deviceSecret ? { deviceSecret: result.deviceSecret } : {}) });
   } catch (e) {
     next(e);
   }
@@ -98,7 +112,7 @@ devicesRouter.get('/devices/:fingerprint/status', async (req, res, next) => {
     const r = await query('SELECT * FROM devices WHERE id=$1 LIMIT 1', [req.params.fingerprint]);
     if (!r.rowCount) return res.status(404).json({ message: 'Device not registered' });
     const freeTrialLimit = Number(await getConfigValue('free_trial_limit', 0));
-    const subscriptionPrice = Number(await getConfigValue('subscription_price', 100));
+    const subscriptionPrice = Number(await getConfigValue('subscription_price', 25));
     const currency = await getConfigValue('currency', 'GMD');
     res.set('Cache-Control', 'no-store');
     res.json({ data: publicDevice(r.rows[0], { freeTrialLimit, subscriptionPrice, currency }) });
@@ -107,7 +121,7 @@ devicesRouter.get('/devices/:fingerprint/status', async (req, res, next) => {
   }
 });
 
-devicesRouter.post('/devices/:fingerprint/trial-increment', async (req, res, next) => {
+devicesRouter.post('/devices/:fingerprint/trial-increment', requireDeviceSecret, async (req, res, next) => {
   try {
     const b = trialSchema.parse(req.body);
     const r = await query('SELECT * FROM devices WHERE id=$1 LIMIT 1', [req.params.fingerprint]);
@@ -125,7 +139,6 @@ devicesRouter.post('/devices/:fingerprint/trial-increment', async (req, res, nex
     next(e);
   }
 });
-
 
 devicesRouter.get('/admin/devices', requireAdmin, async (_req, res, next) => {
   try {
@@ -167,6 +180,19 @@ devicesRouter.post('/admin/devices/:id/unblock', requireAdmin, async (req, res, 
     const r = await query("UPDATE devices SET status='trial',access_source='trial', updated_at=NOW() WHERE id=$1 RETURNING *", [req.params.id]);
     await audit(req, 'device_unblocked', 'device', String(req.params.id), null, r.rows[0]);
     res.json({ data: r.rows[0] ? publicDevice(r.rows[0]) : null });
+  } catch (e) {
+    next(e);
+  }
+});
+
+devicesRouter.post('/admin/devices/:id/reset-trial-usage', requireAdmin, async (req, res, next) => {
+  try {
+    const before = await query('SELECT * FROM devices WHERE id=$1 LIMIT 1', [req.params.id]);
+    if (!before.rowCount) return res.status(404).json({ message: 'Device not found' });
+    if (before.rows[0].status !== 'trial') return res.status(409).json({ message: 'Trial usage can only be reset for a trial device.' });
+    const r = await query('UPDATE devices SET trial_contacts_used=0, updated_at=NOW() WHERE id=$1 RETURNING *', [req.params.id]);
+    await audit(req, 'trial_usage_reset', 'device', String(req.params.id), before.rows[0], r.rows[0]);
+    res.json({ data: publicDevice(r.rows[0]) });
   } catch (e) {
     next(e);
   }

@@ -31,8 +31,8 @@ export default function Splash() {
       <View style={{ width: 112, height: 112, borderRadius: 32, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', shadowColor: colors.shadow, shadowOpacity: 0.18, shadowRadius: 30, shadowOffset: { width: 0, height: 14 }, elevation: 6 }}>
         <AppIcon name="update" color={colors.primary} size={44} />
       </View>
-      <Text style={[styles.largeTitle, { marginTop: 24, textAlign: 'center', color: colors.title }]}>Gambia Number{`\n`}Migrator</Text>
-      <Text style={[styles.body, { marginTop: 10, textAlign: 'center' }]}>Smart. Secure. Seamless.</Text>
+      <Text style={[styles.largeTitle, { marginTop: 24, textAlign: 'center', color: colors.title }]}>GNM</Text>
+      <Text style={[styles.body, { marginTop: 10, textAlign: 'center' }]}>Gambia Number Migrator · Smart. Secure. Seamless.</Text>
       <ActivityIndicator color={colors.primary} style={{ marginTop: 38 }} />
       <Text style={[styles.small, { position: 'absolute', bottom: 32, textAlign: 'center' }]}>Contacts stay on your device</Text>
     </View>

@@ -3,26 +3,36 @@ import { api } from '../api/client';
 
 type Config = Record<string, unknown>;
 const fields = [
-  ['subscription_price', 'Contact Migration Pass price (GMD)', 'number', '100'],
+  ['subscription_price', 'Contact Migration Pass price (GMD)', 'number', '25'],
   ['support_email', 'Support email', 'email', 'support@your-domain.gm'],
   ['support_phone', 'Support phone', 'tel', '+220 000 0000'],
   ['support_whatsapp', 'Support WhatsApp', 'tel', '+220 000 0000'],
   ['privacy_policy_url', 'Privacy policy URL', 'url', 'https://your-domain.gm/privacy'],
   ['terms_url', 'Terms URL', 'url', 'https://your-domain.gm/terms'],
   ['announcement_message', 'In-app announcement', 'text', 'Welcome to Gambia Number Migrator'],
+  ['rules_about_note', 'Rules & About note (Settings screen)', 'text', 'Optional extra note shown under Rules & About in the app. Leave blank to hide.'],
 ] as const;
+
+function localDateTimeValue(value: unknown) {
+  if (!value) return '';
+  const date = new Date(String(value));
+  if (!Number.isFinite(date.getTime())) return '';
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 16);
+}
 
 export default function AppConfig() {
   const [config, setConfig] = useState<Config>({});
   const [advanced, setAdvanced] = useState('{}');
   const [msg, setMsg] = useState('');
   const [saving, setSaving] = useState(false);
-  const [campaignStats, setCampaignStats] = useState<Record<string, number>>({});
+  const [loading, setLoading] = useState(true);
+  const [campaignStats, setCampaignStats] = useState<Record<string, number | string | null>>({});
   useEffect(() => {
-    api<{data: Config}>('/app-config').then((r) => { setConfig(r.data); setAdvanced(JSON.stringify(r.data, null, 2)); });
-    api<{data: Record<string, number>}>('/admin/free-access-stats').then((r) => setCampaignStats(r.data)).catch(() => undefined);
+    api<{data: Config}>('/app-config').then((r) => { setConfig(r.data); setAdvanced(JSON.stringify(r.data, null, 2)); }).catch((err: any) => setMsg(err.message)).finally(() => setLoading(false));
+    api<{data: Record<string, number | string | null>}>('/admin/free-access-stats').then((r) => setCampaignStats(r.data)).catch(() => undefined);
   }, []);
-  function change(key: string, value: string, type?: string) { setConfig((current) => ({ ...current, [key]: type === 'number' ? Number(value) : value })); }
+  function change(key: string, value: string | boolean, type?: string) { setConfig((current) => ({ ...current, [key]: type === 'number' ? Number(value) : value })); }
   async function submit(e: FormEvent) {
     e.preventDefault(); setSaving(true); setMsg('');
     try {
@@ -34,7 +44,8 @@ export default function AppConfig() {
     catch (err: any) { setMsg(err.message); }
     finally { setSaving(false); }
   }
-  function applyAdvanced() { try { const next = JSON.parse(advanced); setConfig(next); setMsg('Advanced JSON applied. Select Save settings to publish it.'); } catch { setMsg('Advanced JSON is invalid.'); } }
+  function applyAdvanced() { try { const next = JSON.parse(advanced); if (!next || Array.isArray(next) || typeof next !== 'object') throw new Error(); setConfig(next); setMsg('Advanced JSON applied. Select Save settings to publish it.'); } catch { setMsg('Advanced JSON must be a valid object.'); } }
+  if (loading) return <div className="loadingState" role="status"><span aria-hidden="true"/>Loading application configuration…</div>;
   return <>
     <div className="topbar"><div className="pageTitle"><h1>App configuration</h1><p>Manage mobile pricing, support contacts, legal links and public app information.</p></div><span className="badge">Live mobile settings</span></div>
     {msg && <p className="notice" role="status">{msg}</p>}
@@ -43,6 +54,23 @@ export default function AppConfig() {
       <div className="formGrid">{fields.map(([key, label, type, placeholder]) => <label key={key}>{label}<input className="input" type={type} min={type === 'number' ? 1 : undefined} step={type === 'number' ? 1 : undefined} placeholder={placeholder} value={String(config[key] ?? '')} onChange={(e) => change(key, e.target.value, type)} /></label>)}</div>
       <p className="configHint"><strong>Price scope:</strong> this amount is for the Contact Migration Pass only. Future products such as eSIMs should use separate product and price keys.</p>
       <p><small>Use full HTTPS links. WhatsApp numbers should include country code, for example +220.</small></p>
+      <hr />
+      <h2>Approved payment wallets</h2>
+      <p>Only enable a wallet after OceanBrown has a signed/confirmed arrangement, production credentials, approved callback rules and a successful end-to-end test. Disabled wallets are hidden from users and rejected by the API.</p>
+      <div className="switchGrid">
+        <label className="switchCard"><span><b>Wave</b><small>Show Wave as a payment option</small></span><input type="checkbox" checked={config.wave_payment_enabled === true} onChange={(e) => change('wave_payment_enabled', e.target.checked)} /><i aria-hidden="true"/></label>
+        <label className="switchCard"><span><b>APS</b><small>Show APS as a payment option</small></span><input type="checkbox" checked={config.aps_payment_enabled === true} onChange={(e) => change('aps_payment_enabled', e.target.checked)} /><i aria-hidden="true"/></label>
+      </div>
+      <p className="configHint"><strong>Safe default:</strong> both wallets remain disabled until you approve them. If both are disabled, the mobile app displays “Payments coming soon.”</p>
+      <hr />
+      <h2>Duplicate cleanup availability</h2>
+      <p>Control exactly when users may remove verified old-number duplicates. Cleanup remains backup-first and only removes an old number when its matching new number exists in the same contact.</p>
+      <div className="switchGrid"><label className="switchCard"><span><b>Enable verified cleanup</b><small>Allow cleanup inside the optional schedule below</small></span><input type="checkbox" checked={config.cleanup_enabled === true} onChange={(e) => change('cleanup_enabled', e.target.checked)} /><i aria-hidden="true"/></label></div>
+      <div className="formGrid">
+        <label>Available from (optional)<input className="input" type="datetime-local" value={localDateTimeValue(config.cleanup_available_from)} onChange={(e) => change('cleanup_available_from', e.target.value ? new Date(e.target.value).toISOString() : '')} /></label>
+        <label>Available until (optional)<input className="input" type="datetime-local" value={localDateTimeValue(config.cleanup_available_until)} onChange={(e) => change('cleanup_available_until', e.target.value ? new Date(e.target.value).toISOString() : '')} /></label>
+      </div>
+      <p className="configHint"><strong>Recommended:</strong> keep cleanup disabled during parallel running, then enable it after the official transition window.</p>
       <hr />
       <h2>Free-access campaign</h2>
       <p>Grant full migration access without payment. Existing promotional grants remain valid when the campaign is turned off.</p>
@@ -63,6 +91,12 @@ export default function AppConfig() {
         <div className="summaryCard"><span><small>Places remaining</small><b>{config.free_access_mode === 'first_n' ? campaignStats.remaining_promotional_places ?? 0 : '—'}</b></span></div>
         <div className="summaryCard"><span><small>Paid users</small><b>{campaignStats.paid_users ?? 0}</b></span></div>
       </div>
+      <p className="configHint">
+        <strong>Last changed:</strong>{' '}
+        {campaignStats.configLastChangedAt
+          ? `${new Date(String(campaignStats.configLastChangedAt)).toLocaleString()} by ${campaignStats.configLastChangedBy || 'an admin'}`
+          : 'No configuration changes recorded yet.'}
+      </p>
       <p className="configHint"><strong>Recommended launch:</strong> choose “First N users free,” enter 100, then save. Places are assigned safely when a device registers.</p>
       <button className="btn" disabled={saving}>{saving ? 'Saving…' : 'Save settings'}</button>
     </form>

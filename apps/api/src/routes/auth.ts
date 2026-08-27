@@ -14,7 +14,7 @@ const loginSchema = z.object({
 authRouter.post('/auth/login', async (req, res, next) => {
   try {
     const body = loginSchema.parse(req.body);
-    const result = await query('SELECT * FROM admins WHERE username=$1 AND status=$2 LIMIT 1', [body.username, 'active']);
+    const result = await query('SELECT * FROM admins WHERE username=$1 AND status=$2 LIMIT 1', [body.username.toLowerCase(), 'active']);
     const admin = result.rows[0];
     if (!admin || !(await bcrypt.compare(body.password, admin.password_hash))) {
       return res.status(401).json({ message: 'Invalid username or password' });

@@ -8,12 +8,6 @@ where pnpm >nul 2>nul || goto :missing_pnpm
 if not exist ".env" goto :setup_required
 if not exist "node_modules" goto :setup_required
 
-if not exist "apps\mobile\node_modules\expo-splash-screen\package.json" (
-  echo A required Expo package is missing. Repairing dependencies...
-  call pnpm install
-  if errorlevel 1 goto :install_failed
-)
-
 echo Building the shared migration rule engine...
 call pnpm --filter @gnm/shared build
 if errorlevel 1 goto :build_failed
@@ -27,16 +21,19 @@ echo.
 echo PC/LAN IP: %PC_IP%
 echo API:        http://localhost:8089/api/health
 echo Admin:      http://localhost:5173
+echo Website:    http://localhost:5174
 echo Mobile API: http://%PC_IP%:8089/api
 echo.
 
 call :prepare_database
+if errorlevel 1 goto :database_failed
 
 echo.
 echo Opening API, Admin and Mobile in separate windows...
 start "GNM API - 8089" /D "%~dp0" cmd /k "pnpm --filter @gnm/api dev"
 start "GNM Admin - 5173" /D "%~dp0" cmd /k "pnpm --filter @gnm/admin dev"
-start "GNM Mobile - Expo 8082" /D "%~dp0" cmd /k "set EXPO_NO_TELEMETRY=1&& set EXPO_PUBLIC_API_BASE_URL=http://%PC_IP%:8089/api&& pnpm --filter @gnm/mobile exec expo start --host lan --port 8082 --clear"
+start "GNM Website - 5174" /D "%~dp0" cmd /k "pnpm --filter @gnm/web dev"
+start "GNM Mobile - Expo 8082" /D "%~dp0" cmd /k "set EXPO_NO_TELEMETRY=1&& set EXPO_NO_DEPENDENCY_VALIDATION=1&& set REACT_NATIVE_PACKAGER_HOSTNAME=%PC_IP%&& set EXPO_PUBLIC_API_BASE_URL=http://%PC_IP%:8089/api&& pnpm --filter @gnm/mobile run start:lan"
 
 timeout /t 3 /nobreak >nul
 start "" "http://localhost:5173"
@@ -65,34 +62,41 @@ docker info >nul 2>nul
 if errorlevel 1 (
   echo WARNING: Docker Desktop is installed but the Docker engine is not running.
   echo Open Docker Desktop and wait until it says "Docker Desktop is running".
-  echo Skipping database start, migrations and seed for now.
+  echo Skipping database start and migrations for now.
   echo Mobile public routes can still use fallback test config.
   exit /b 0
 )
 
-echo Starting PostgreSQL database with Docker Compose...
-docker compose up -d
-if errorlevel 1 (
-  echo WARNING: Docker could not start PostgreSQL.
-  echo Skipping migrations and seed to avoid ECONNREFUSED errors.
-  exit /b 0
+docker container inspect gambia_number_migrator_postgres >nul 2>nul
+if not errorlevel 1 (
+  echo Existing GNM PostgreSQL container found. Reusing it...
+  docker start gambia_number_migrator_postgres >nul
+  if errorlevel 1 (
+    echo ERROR: The existing PostgreSQL container could not be started.
+    echo Open Docker Desktop, inspect gambia_number_migrator_postgres, then try again.
+    exit /b 1
+  )
+) else (
+  echo Creating PostgreSQL database with Docker Compose...
+  docker compose up -d postgres
+  if errorlevel 1 (
+    echo ERROR: Docker could not create the GNM PostgreSQL container.
+    echo Run FIX_DOCKER_DATABASE.bat, then run START_ALL.bat again.
+    exit /b 1
+  )
 )
 
 call :wait_db
 if errorlevel 1 (
   echo WARNING: PostgreSQL was not ready after waiting.
-  echo Skipping migrations and seed to avoid ECONNREFUSED errors.
-  echo Admin login needs the database to be ready.
-  exit /b 0
+  echo API and Admin startup was stopped to avoid ECONNREFUSED errors.
+  exit /b 1
 )
 
 echo Running safe database migrations...
 call pnpm --filter @gnm/api db:migrate
 if errorlevel 1 echo WARNING: Migration failed. API will still start, but Admin may need database repair.
 
-echo Running safe database seed...
-call pnpm --filter @gnm/api db:seed
-if errorlevel 1 echo WARNING: Seed failed. Admin login may not be available until seed succeeds.
 exit /b 0
 
 :wait_db
@@ -125,14 +129,15 @@ echo Double-click RUN_THIS_FIRST.bat, wait for SETUP COMPLETE, then run START_AL
 pause
 exit /b 1
 
-:install_failed
-echo ERROR: Dependency repair failed.
-echo Close other GNM windows, check your internet connection, then run RUN_THIS_FIRST.bat again.
-pause
-exit /b 1
-
 :build_failed
 echo ERROR: The shared migration rule engine could not be built.
 echo Run RUN_THIS_FIRST.bat again and check the error above.
+pause
+exit /b 1
+
+:database_failed
+echo.
+echo ERROR: The local database is not ready, so API/Admin/Mobile were not started.
+echo Run FIX_DOCKER_DATABASE.bat and then run START_ALL.bat again.
 pause
 exit /b 1

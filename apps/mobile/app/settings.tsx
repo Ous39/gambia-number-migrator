@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Linking, Share, Text, TouchableOpacity, View } from 'react-native';
+import { router } from 'expo-router';
+import { DEFAULT_RULES_PAYLOAD, type PublishedRulesPayload } from '@gnm/shared';
 import { BackHeader, Card, NoticeCard, Screen, Section, useAppDialog } from '../src/components/UI';
 import { AppIcon } from '../src/components/AppIcon';
 import { Button } from '../src/components/Button';
-import { getJson, keys } from '../src/services/storage';
+import { clearLocalData, getJson, keys } from '../src/services/storage';
 import { getApiBaseUrl, registerDevice, syncConfig } from '../src/services/api';
 import { getDeviceFingerprint, getDeviceInfo } from '../src/services/deviceService';
 import { type ThemeMode, useAppTheme } from '../src/appTheme';
@@ -13,11 +15,16 @@ export default function Settings() {
   const { showDialog, Dialog } = useAppDialog();
   const [config, setConfig] = useState<Record<string, unknown>>({});
   const [diagnostics, setDiagnostics] = useState<any>(null);
+  const [rules, setRules] = useState<PublishedRulesPayload>(DEFAULT_RULES_PAYLOAD);
 
   useEffect(() => {
     syncConfig().then(setConfig).catch(() => undefined);
     getDeviceFingerprint().then((id) => registerDevice(id, getDeviceInfo())).then(setDiagnostics).catch(() => undefined);
+    getJson<PublishedRulesPayload>(keys.rules, DEFAULT_RULES_PAYLOAD).then(setRules).catch(() => undefined);
   }, []);
+
+  const rulesPublishedAt = rules.publishedAt && rules.publishedAt !== 'offline-unavailable' ? new Date(rules.publishedAt) : null;
+  const activeRuleCount = Array.isArray(rules.rules) ? rules.rules.length : 0;
 
   const supportEmail = String(config.support_email || process.env.EXPO_PUBLIC_SUPPORT_EMAIL || '');
   const supportWhatsApp = String(config.support_whatsapp || process.env.EXPO_PUBLIC_SUPPORT_WHATSAPP || '');
@@ -52,12 +59,27 @@ export default function Settings() {
     await Share.share({ title: 'Gambia Number Migrator support details', message: supportMessage });
   }
 
+  function confirmResetLocalData() {
+    showDialog({
+      title: 'Reset local app data?',
+      message: 'This permanently deletes saved scan results, migration history, and all local backups from this device. Your phone contacts are never touched. This cannot be undone.',
+      tone: 'danger',
+      icon: 'warning',
+      actions: [
+        { text: 'Cancel', variant: 'secondary' },
+        { text: 'Reset App Data', variant: 'danger', tone: 'danger', onPress: async () => {
+          await clearLocalData();
+          router.replace('/');
+        } }
+      ]
+    });
+  }
+
   async function showDebug() {
-    const rules = await getJson<any>(keys.rules, null);
     const transition = await getJson<any>(keys.transition, null);
     showDialog({
-      title: 'App diagnostics',
-      message: `Support: ${diagnostics?.supportCode || 'unavailable'}\nAPI: ${getApiBaseUrl()}\nRules: ${rules?.versionNumber || 'none'}\nTransition: ${transition?.transitionStartDate || 'none'}\nTheme: ${mode} (${resolvedMode})`,
+      title: 'App info',
+      message: `Support code: ${diagnostics?.supportCode || 'unavailable'}\nAPI: ${getApiBaseUrl()}\nRules version: ${rules?.versionNumber || 'none'}\nTransition: ${transition?.transitionStartDate || 'none'}\nTheme: ${mode} (${resolvedMode})`,
       tone: 'blue',
       icon: 'info',
     });
@@ -81,7 +103,7 @@ export default function Settings() {
           </View>
           <View style={{ flexDirection: 'row', gap: 10 }}>
             {(['system', 'light', 'dark'] as ThemeMode[]).map((m) => (
-              <TouchableOpacity key={m} activeOpacity={0.84} onPress={() => setMode(m)} style={{ flex: 1, minHeight: 48, borderRadius: 16, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: mode === m ? colors.primary : colors.line, backgroundColor: mode === m ? colors.primarySoft : colors.surface2 }}>
+              <TouchableOpacity key={m} accessibilityRole="radio" accessibilityLabel={`${m} theme`} accessibilityState={{ checked: mode === m }} activeOpacity={0.84} onPress={() => setMode(m)} style={{ flex: 1, minHeight: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: mode === m ? colors.primary : colors.line, backgroundColor: mode === m ? colors.primarySoft : colors.surface2 }}>
                 <Text style={{ color: mode === m ? colors.primary : colors.text, fontWeight: '900', textTransform: 'capitalize' }}>{m}</Text>
               </TouchableOpacity>
             ))}
@@ -96,7 +118,7 @@ export default function Settings() {
           <InfoRow label="Payment privacy" value="Device reference only" icon="card" />
           <InfoRow label="Tracking" value="Off by default" icon="shield" />
         </Card>
-        <View style={{ marginTop: 12 }}><NoticeCard title="Support diagnostics" text="For payment recovery and technical support, the server records a device reference, model, operating system, app version, payment status, last active time and last-seen IP address. Contacts and phone numbers are never included." tone="blue" icon="info" /></View>
+        <View style={{ marginTop: 12 }}><NoticeCard title="What the server knows about this device" text="For access status and support, the server stores a random device reference, basic device/app info, and payment status. It never receives contact names, phone numbers, backups, or your scan results." tone="blue" icon="info" /></View>
       </Section>
 
       <Section title="Migration Preferences">
@@ -124,12 +146,25 @@ export default function Settings() {
         <View style={{ marginTop: 12 }}><NoticeCard title="Never share payment PINs" text="Support will never ask for your Wave/APS PIN, OTP, password, or full contact list." tone="warning" icon="shield" /></View>
       </Section>
 
-      <Section title="About">
+      <Section title="Rules & About">
         <Card style={{ gap: 14 }}>
-          <InfoRow label="Version" value="2.8.8 Production" icon="info" />
-          <InfoRow label="Rules" value="Admin published" icon="settings" />
-          <Text style={[styles.small, { marginTop: 2 }]}>Proudly made for The Gambia · Powered by OceanBrown</Text>
-          <Button title="Show Diagnostics" variant="secondary" tone="blue" icon="info" onPress={showDebug} />
+          <InfoRow label="Rule source" value="PURA-guided migration rules" icon="shield" />
+          <InfoRow label="Last rule update" value={rulesPublishedAt ? rulesPublishedAt.toLocaleDateString() : 'Not yet synced'} icon="info" />
+          <InfoRow label="Active rules" value={String(activeRuleCount)} icon="cleanup" />
+          <InfoRow label="Version" value={deviceInfo.appVersion} icon="info" />
+          <InfoRow label="Build" value={String((deviceInfo as any).buildNumber || '—')} icon="settings" />
+          <Text style={[styles.small, { marginTop: 2 }]}>Numbering ranges are based on published PURA guidance. Contact scanning, migration and cleanup all run on this device — administrators cannot view, access, or delete your contacts. Privacy Policy, Terms and support contacts are below.</Text>
+          {String(config.rules_about_note || '').trim() ? (
+            <View style={{ marginTop: 4 }}><NoticeCard title="Note from the service" text={String(config.rules_about_note).trim()} tone="blue" icon="info" /></View>
+          ) : null}
+          <Button title="App Info" variant="secondary" tone="blue" icon="info" onPress={showDebug} />
+        </Card>
+      </Section>
+
+      <Section title="Danger Zone">
+        <Card style={{ gap: 10 }}>
+          <Text style={styles.body}>Permanently erase saved scan results, migration history, and local backups stored on this device. Your phone contacts are never deleted by this action.</Text>
+          <Button title="Reset Local App Data" variant="danger" tone="danger" icon="warning" onPress={confirmResetLocalData} />
         </Card>
       </Section>
       <Dialog />

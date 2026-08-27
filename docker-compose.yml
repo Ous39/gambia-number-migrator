@@ -6,9 +6,9 @@ services:
     environment:
       POSTGRES_DB: gambia_number_migrator
       POSTGRES_USER: gnm_user
-      POSTGRES_PASSWORD: gnm_password
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     ports:
-      - "5434:5432"
+      - "127.0.0.1:5434:5432"
     volumes:
       - gnm_pg_data:/var/lib/postgresql/data
     healthcheck:

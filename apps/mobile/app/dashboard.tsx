@@ -1,16 +1,17 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 import { getRecommendedUpdateMode, getTransitionStatus, hasApprovedMigrationRules } from '@gnm/shared';
 import { Button } from '../src/components/Button';
-import { Card, FixedBottomTabs, MetricCard, NoticeCard, ProgressBar, ResponsiveGrid, Section, useAppDialog } from '../src/components/UI';
+import { Card, FixedBottomTabs, MetricCard, NoticeCard, ProgressBar, ResponsiveGrid, Section, TopNav, useAppDialog } from '../src/components/UI';
 import { AppIcon } from '../src/components/AppIcon';
-import { syncRules, syncTransition } from '../src/services/api';
-import { scanContacts } from '../src/services/contactsService';
+import { syncConfig, syncRules, syncTransition } from '../src/services/api';
+import { SCAN_SCHEMA_VERSION, scanContacts } from '../src/services/contactsService';
 import { getJson, keys, setJson } from '../src/services/storage';
 import { getTone, useAppTheme, useResponsive } from '../src/appTheme';
 import { getAccessStatus, type AccessStatus } from '../src/services/unlockService';
+import { cleanupAvailability, failOperation, finishOperation, getOperationJob, startOperation, updateOperation } from '../src/services/operationService';
 
 function formatNumber(n: number) {
   return Number(n || 0).toLocaleString();
@@ -28,23 +29,37 @@ export default function Dashboard() {
   const [refreshing, setRefreshing] = useState(false);
   const [scanProgress, setScanProgress] = useState(0);
   const [access, setAccess] = useState<AccessStatus | null>(null);
+  const [operation, setOperation] = useState<any>(null);
+  const [cleanupAccess, setCleanupAccess] = useState({ available: false, reason: 'Cleanup is unavailable.' });
 
   async function load() {
-    const [syncedRules, syncedTransition, savedScan, accessStatus] = await Promise.all([
+    const [syncedRules, syncedTransition, config, savedScan, accessStatus, savedOperation] = await Promise.all([
       syncRules(),
       syncTransition(),
+      syncConfig(),
       getJson<any>(keys.scan, null),
       getAccessStatus(),
+      getOperationJob(),
     ]);
     setRules(syncedRules);
     setTransition(syncedTransition);
     setAccess(accessStatus);
-    const scanIsCurrent = Boolean(savedScan && hasApprovedMigrationRules(syncedRules) && savedScan.rulesVersion === syncedRules.versionNumber);
+    setOperation(savedOperation);
+    setCleanupAccess(cleanupAvailability(config));
+    const scanIsCurrent = Boolean(savedScan && hasApprovedMigrationRules(syncedRules) && savedScan.rulesVersion === syncedRules.versionNumber && savedScan.schemaVersion === SCAN_SCHEMA_VERSION);
     setScan(scanIsCurrent ? savedScan : null);
     if (savedScan && !scanIsCurrent) await setJson(keys.scan, null);
   }
 
   useFocusEffect(useCallback(() => { load().catch(() => undefined); }, []));
+
+  useEffect(() => {
+    if (operation?.status !== 'running') return;
+    const timer = setInterval(() => {
+      getOperationJob().then(setOperation).catch(() => undefined);
+    }, 750);
+    return () => clearInterval(timer);
+  }, [operation?.status]);
 
   const recommended = transition ? getRecommendedUpdateMode(transition) : 'duplicate';
   const status = transition ? getTransitionStatus(transition) : 'before_transition';
@@ -68,8 +83,12 @@ export default function Dashboard() {
   const rulesCount = rules?.rules?.length || 0;
   const flowTone = getTone(colors, recommended === 'duplicate' ? 'primary' : 'warning');
 
-  async function doScan() {
+  async function doScan(force = false) {
     try {
+      if (scan && !force) {
+        router.push({ pathname: '/preview', params: { filter: 'All', source: 'saved-scan' } });
+        return;
+      }
       if (!hasApprovedMigrationRules(rules)) {
         showDialog({
           title: 'Rules not synced',
@@ -81,10 +100,13 @@ export default function Dashboard() {
       }
       setLoading(true);
       setScanProgress(1);
-      const result = await scanContacts(rules, recommended, (p) => setScanProgress(p.percent));
+      await startOperation('scan', force ? 'Refreshing contact scan' : 'Scanning contacts', 0, '/dashboard');
+      const result = await scanContacts(rules, recommended, (p) => { setScanProgress(p.percent); void updateOperation(p); });
+      await finishOperation(`${result.contactsCount} contacts scanned locally.`);
       setScan(result);
       router.push({ pathname: '/scan-complete', params: { total: String(result.contactsCount || 0), pending: String(result.summary.ready), updated: String(result.summary.alreadyUpdated), review: String(result.summary.review), unchanged: String(result.summary.unchangedContacts), duration: String(result.durationMs || 0) } });
     } catch (e: any) {
+      await failOperation(e?.message || 'Contact scan failed.');
       showDialog({ title: 'Scan failed', message: e?.message || 'Could not scan contacts. Please check contact permission and try again.', tone: 'danger', icon: 'warning' });
     } finally {
       setLoading(false);
@@ -100,7 +122,7 @@ export default function Dashboard() {
 
   function openPreview(filter: 'All' | 'Needs Update' | 'Review' | 'Updated' = 'All') {
     if (!scan) {
-      showDialog({ title: 'Scan contacts first', message: 'Run a contact scan before opening Preview so the results are current and accurate.', tone: 'blue', icon: 'scan', actions: [{ text: 'Cancel', variant: 'secondary' }, { text: 'Scan Now', tone: 'primary', onPress: doScan }] });
+      showDialog({ title: 'Scan contacts first', message: 'Run a contact scan before opening Preview so the results are current and accurate.', tone: 'blue', icon: 'scan', actions: [{ text: 'Cancel', variant: 'secondary' }, { text: 'Scan Now', tone: 'primary', onPress: () => { void doScan(); } }] });
       return;
     }
     router.push({ pathname: '/preview', params: { filter, source: 'overview' } });
@@ -108,17 +130,14 @@ export default function Dashboard() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right', 'bottom']}>
-      <View style={{ backgroundColor: colors.bg, borderBottomWidth: 1, borderBottomColor: colors.line, zIndex: 20, elevation: 8 }}>
-        <View style={{ width: '100%', maxWidth: r.maxWidth as any, alignSelf: 'center', paddingHorizontal: r.horizontalPadding, paddingTop: 8, paddingBottom: 12 }}>
-          <View style={[styles.rowBetween, { gap: 12 }]}> 
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={{ color: colors.primary, fontSize: 12, letterSpacing: 1.5, fontWeight: '900' }}>GAMBIA NUMBER MIGRATOR</Text>
-              <Text numberOfLines={1} style={{ color: colors.text, fontSize: r.compact ? 24 : 28, lineHeight: r.compact ? 30 : 34, fontWeight: '900', marginTop: 2 }}>Dashboard</Text>
-            </View>
-            <View style={{flexDirection:'row',gap:8}}><TouchableOpacity accessibilityRole="button" accessibilityLabel="Open notifications" activeOpacity={0.85} onPress={() => router.push('/notifications')} style={{ width: 44, height: 44, borderRadius: 16, backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' }}><AppIcon name="notification" color={colors.primary} size={21} /></TouchableOpacity><TouchableOpacity accessibilityRole="button" accessibilityLabel="Refresh dashboard" accessibilityState={{busy:refreshing}} activeOpacity={0.85} onPress={refresh} style={{ width: 44, height: 44, borderRadius: 16, backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' }}><AppIcon name="refresh" color={colors.primary} size={21} /></TouchableOpacity></View>
-          </View>
-        </View>
-      </View>
+      <TopNav
+        title="Dashboard"
+        eyebrow="GAMBIA NUMBER MIGRATOR"
+        right={<>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Open notifications" activeOpacity={0.85} onPress={() => router.push('/notifications')} style={{ width: 44, height: 44, borderRadius: 16, backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' }}><AppIcon name="notification" color={colors.primary} size={21} /></TouchableOpacity>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Refresh dashboard" accessibilityState={{ busy: refreshing }} activeOpacity={0.85} onPress={refresh} style={{ width: 44, height: 44, borderRadius: 16, backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' }}><AppIcon name="refresh" color={colors.primary} size={21} /></TouchableOpacity>
+        </>}
+      />
 
       <ScrollView
         keyboardShouldPersistTaps="handled"
@@ -146,9 +165,15 @@ export default function Dashboard() {
         </Card>
 
         <View style={{ flexDirection: r.contentWidth > 340 ? 'row' : 'column', gap: 10, marginBottom: 14 }}>
-          <Button title={loading ? 'Scanning...' : 'Scan Contacts'} icon="scan" loading={loading} disabled={loading} onPress={doScan} style={{ flex: 1, minHeight: 56, borderRadius: 18 }} />
+          <Button title={loading ? 'Scanning...' : scan ? 'View Saved Scan' : 'Scan Contacts'} icon={scan ? 'preview' : 'scan'} loading={loading} disabled={loading} onPress={() => { void doScan(); }} style={{ flex: 1, minHeight: 56, borderRadius: 18 }} />
           <Button title="Preview" icon="preview" variant="secondary" tone="blue" onPress={() => openPreview('Needs Update')} style={{ flex: 1, minHeight: 56, borderRadius: 18 }} />
         </View>
+        {scan && !loading ? (
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Scan again for newly added or changed contacts" activeOpacity={0.82} onPress={() => { void doScan(true); }} style={{ minHeight: 48, marginTop: -6, marginBottom: 14, borderRadius: 16, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            <AppIcon name="refresh" color={colors.primary} size={18} />
+            <Text style={{ color: colors.primary, fontWeight: '900' }}>Scan again for new or changed contacts</Text>
+          </TouchableOpacity>
+        ) : null}
 
         {loading ? (
           <Card style={{ marginBottom: 18, gap: 12 }} elevated>
@@ -162,13 +187,14 @@ export default function Dashboard() {
             <ProgressBar percent={scanProgress} />
           </Card>
         ) : null}
+        {operation?.status === 'running' ? <Card elevated style={{ marginBottom: 14, gap: 8 }}><View style={styles.rowBetween}><View style={{ flex: 1 }}><Text style={{ color: colors.text, fontWeight: '900', fontSize: 16 }}>{operation.title}</Text><Text style={styles.small}>This continues while you use another page inside GNM. Keep the app open.</Text></View><Text style={{ color: colors.primary, fontWeight: '900' }}>{operation.percent}%</Text></View><ProgressBar percent={operation.percent} /></Card> : null}
 
         <Section title="Overview" right={<Text style={styles.small}>Tap a card to open</Text>} style={{ marginTop: 0 }}>
           <ResponsiveGrid minItemWidth={142} gap={12}>
             <MetricCard icon="contacts" value={formatNumber(metrics.total)} label="Total contacts" tone="secondary" helper={metrics.total ? 'All' : undefined} onPress={() => openPreview('All')} />
             <MetricCard icon="update" value={formatNumber(metrics.pending)} label="Ready to update" tone="primary" helper={metrics.pending ? 'Update' : 'Scan'} onPress={() => openPreview('Needs Update')} />
             <MetricCard icon="check" value={formatNumber(metrics.updated)} label="Already updated" tone="success" helper={metrics.updated ? 'View' : undefined} onPress={() => openPreview('Updated')} />
-            <MetricCard icon="cleanup" value={formatNumber(metrics.cleanup)} label="Safe cleanup" tone="warning" helper={metrics.cleanup ? 'Clean' : undefined} onPress={() => router.push('/cleanup')} />
+            <MetricCard icon="cleanup" value={formatNumber(metrics.cleanup)} label="Safe cleanup" tone="warning" helper={cleanupAccess.available && metrics.cleanup ? 'Clean' : 'Scheduled'} onPress={() => router.push('/cleanup')} />
           </ResponsiveGrid>
         </Section>
 
@@ -186,7 +212,7 @@ export default function Dashboard() {
             <ProgressBar percent={completion} />
             <View style={styles.rowBetween}>
               <Text style={styles.small}>{statusLabel} · {completion}% already updated</Text>
-              <TouchableOpacity onPress={() => router.push('/backup')}><Text style={{ color: colors.primary, fontWeight: '900' }}>Backups</Text></TouchableOpacity>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Open backups" onPress={() => router.push('/backup')} style={{ minHeight: 44, justifyContent: 'center', paddingHorizontal: 6 }}><Text style={{ color: colors.primary, fontWeight: '900' }}>Backups</Text></TouchableOpacity>
             </View>
           </Card>
         </Section>
@@ -195,18 +221,20 @@ export default function Dashboard() {
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
             <Button title="Backups" icon="backup" variant="secondary" tone="teal" onPress={() => router.push('/backup')} style={{ flexGrow: 1, minWidth: 104 }} />
             <Button title="History" icon="history" variant="secondary" tone="violet" onPress={() => router.push('/history')} style={{ flexGrow: 1, minWidth: 104 }} />
-            <Button title="Cleanup" icon="cleanup" variant="secondary" tone="warning" onPress={() => router.push('/cleanup')} style={{ flexGrow: 1, minWidth: 104 }} />
+            <Button title={cleanupAccess.available ? 'Cleanup' : 'Cleanup locked'} icon={cleanupAccess.available ? 'cleanup' : 'lock'} variant="secondary" tone="warning" onPress={() => router.push('/cleanup')} style={{ flexGrow: 1, minWidth: 104 }} />
           </View>
         </Section>
 
-        <NoticeCard
-          title={access?.paid ? 'Contact migration unlocked' : 'Free access'}
-          text={access?.paid ? 'Payment is confirmed on this device. Unlimited migration and premium backup tools are available.' : `You can migrate up to ${access?.freeTrialLimit ?? 10} contacts for free. ${access?.remaining ?? 10} remain. Backup management, restore, replace, and cleanup require Full Unlock.`}
-          tone={access?.paid ? 'success' : 'gold'}
-          icon={access?.paid ? 'check' : 'premium'}
-        />
+        <View style={{ marginTop: 18 }}>
+          <NoticeCard
+            title={access?.paid ? 'Contact migration unlocked' : 'Free access'}
+            text={access?.paid ? 'Payment is confirmed on this device. Unlimited migration and premium backup tools are available.' : `You can migrate up to ${access?.freeTrialLimit ?? 10} contacts for free. ${access?.remaining ?? 10} remain. Backup management, restore, replace, and cleanup require Full Unlock.`}
+            tone={access?.paid ? 'success' : 'gold'}
+            icon={access?.paid ? 'check' : 'premium'}
+          />
+        </View>
 
-        <Text style={[styles.small, { textAlign: 'center', marginTop: 14 }]}>Your contacts stay on this phone. Only verified migration rules are downloaded.</Text>
+        <Text style={[styles.small, { textAlign: 'center', marginTop: 18, paddingHorizontal: 8 }]}>Your contacts stay on this phone. Only verified migration rules are downloaded.</Text>
       </ScrollView>
       <FixedBottomTabs />
       <Dialog />

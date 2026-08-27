@@ -34,20 +34,20 @@ docker info >nul 2>nul
 if errorlevel 1 (
   echo WARNING: Docker Desktop is installed but the Docker engine is not running.
   echo Open Docker Desktop and wait until it is running.
-  echo Skipping database start, migrations and seed.
+  echo Skipping database start and migrations.
   exit /b 0
 )
 
 echo Starting PostgreSQL database with Docker Compose...
 docker compose up -d
 if errorlevel 1 (
-  echo WARNING: Docker could not start PostgreSQL. Skipping migrations and seed.
+  echo WARNING: Docker could not start PostgreSQL. Skipping migrations.
   exit /b 0
 )
 
 call :wait_db
 if errorlevel 1 (
-  echo WARNING: PostgreSQL was not ready after waiting. Skipping migrations and seed.
+  echo WARNING: PostgreSQL was not ready after waiting. Skipping migrations.
   exit /b 0
 )
 
@@ -55,9 +55,6 @@ echo Running safe database migrations...
 call pnpm --filter @gnm/api db:migrate
 if errorlevel 1 echo WARNING: Migration failed. API will still start.
 
-echo Running safe database seed...
-call pnpm --filter @gnm/api db:seed
-if errorlevel 1 echo WARNING: Seed failed. Admin login may not be available.
 exit /b 0
 
 :wait_db

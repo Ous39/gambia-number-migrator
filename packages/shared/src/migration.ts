@@ -7,8 +7,46 @@ export function generateMigrationCandidates(contacts: ContactLike[], payload: Pu
   for (const contact of contacts) {
     const phoneNumbers = contact.phoneNumbers || [];
     const normalizedNumbers = phoneNumbers.map((p) => normalizeGambianPhone(p.number));
+    const pairedNewNumbers = new Set<string>();
+    for (const normalized of normalizedNumbers) {
+      if (normalized.type !== 'old_7_digit') continue;
+      const detection = detectOperator(normalized.localDigits, payload);
+      if (detection.matched && detection.migratedNumber && normalizedNumbers.some((value) => value.type === 'new_9_digit' && value.localDigits === detection.migratedNumber)) {
+        pairedNewNumbers.add(detection.migratedNumber);
+      }
+    }
     phoneNumbers.forEach((phone, phoneIndex) => {
       const normalized = normalizeGambianPhone(phone.number);
+      if (normalized.type === 'new_9_digit') {
+        // A matching old-number row already represents a verified duplicate
+        // pair. Standalone new numbers still need to appear in scan results so
+        // users can see that they are already migrated.
+        if (pairedNewNumbers.has(normalized.localDigits)) return;
+        const possibleOldNumber = normalized.localDigits.slice(2);
+        const detection = detectOperator(possibleOldNumber, payload);
+        const isVerifiedNewNumber = detection.matched && detection.migratedNumber === normalized.localDigits;
+        candidates.push({
+          contactId: contact.id,
+          contactName: contact.name || 'Unnamed Contact',
+          phoneIndex,
+          phoneLabel: phone.label,
+          originalNumber: phone.number,
+          normalizedOldNumber: isVerifiedNewNumber ? possibleOldNumber : undefined,
+          migratedNumber: normalized.localDigits,
+          operatorName: isVerifiedNewNumber ? detection.operatorName : undefined,
+          operatorId: isVerifiedNewNumber ? detection.operatorId : undefined,
+          matchConfidence: isVerifiedNewNumber ? detection.confidence : 'manual_review',
+          matchedRuleId: isVerifiedNewNumber ? detection.matchedRuleId : undefined,
+          matchedRuleType: isVerifiedNewNumber ? detection.matchedRuleType : undefined,
+          updateMode,
+          status: isVerifiedNewNumber ? 'Already Updated' : 'Manual Review',
+          reason: isVerifiedNewNumber
+            ? 'Verified new 9-digit number is already saved in this contact.'
+            : 'This is a 9-digit number, but it does not match a published migration rule. No change will be made.',
+          beforePhoneNumbers: phoneNumbers.map((value) => ({ id: value.id, label: value.label, number: value.number }))
+        });
+        return;
+      }
       if (normalized.type !== 'old_7_digit') return;
       const detection = detectOperator(normalized.localDigits, payload);
       if (!detection.matched || !detection.migratedNumber) {
@@ -72,6 +110,7 @@ export function findCleanupCandidates(contacts: ContactLike[], payload: Publishe
         candidates.push({
           contactId: contact.id,
           contactName: contact.name || 'Unnamed Contact',
+          phoneIndex: oldItem.index,
           oldNumber: oldItem.phone.number,
           newNumber: safeMatch.phone.number,
           operatorName: detection.operatorName,

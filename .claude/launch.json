@@ -1,0 +1,23 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "gnm-web",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@gnm/web", "run", "dev"],
+      "port": 5174
+    },
+    {
+      "name": "gnm-admin",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@gnm/admin", "run", "dev"],
+      "port": 5173
+    },
+    {
+      "name": "gnm-api",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@gnm/api", "run", "dev"],
+      "port": 8089
+    }
+  ]
+}

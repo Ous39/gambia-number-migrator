@@ -1,5 +1,5 @@
 @echo off
-setlocal EnableExtensions
+setlocal EnableExtensions EnableDelayedExpansion
 cd /d "%~dp0"
 title Gambia Number Migrator - First Setup
 
@@ -8,13 +8,10 @@ echo  GAMBIA NUMBER MIGRATOR - FIRST SETUP
 echo ====================================================
 echo.
 
-if not exist ".env" (
-  echo Creating local .env from .env.example...
-  copy /Y ".env.example" ".env" >nul
-  if errorlevel 1 goto :error
-  echo Created .env for local testing.
-  echo IMPORTANT: Edit ADMIN_INITIAL_PASSWORD before sharing or deploying this app.
-)
+echo Checking and repairing local environment configuration...
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\windows\ENSURE_LOCAL_ENV.ps1"
+if errorlevel 1 goto :error
+echo.
 
 echo Checking Node.js...
 where node >nul 2>nul || goto :missing_node
@@ -23,12 +20,19 @@ node --version
 echo.
 echo Checking pnpm...
 where pnpm >nul 2>nul || goto :missing_pnpm
-pnpm --version
+call pnpm --version
+if errorlevel 1 goto :error
 
 echo.
-echo Installing dependencies. This can take some minutes...
-call pnpm install
-if errorlevel 1 goto :error
+echo Checking the exact locked dependencies...
+call pnpm install --frozen-lockfile
+if errorlevel 1 (
+  echo.
+  echo Dependency installation was interrupted. Waiting for Windows to release package files...
+  timeout /t 4 /nobreak >nul
+  call pnpm install --frozen-lockfile
+  if errorlevel 1 goto :dependency_locked
+)
 
 echo.
 echo Building shared package...
@@ -41,9 +45,16 @@ where docker >nul 2>nul || goto :missing_docker
 docker info >nul 2>nul
 if errorlevel 1 goto :docker_not_running
 
-echo Starting PostgreSQL database with Docker Compose...
-docker compose up -d
-if errorlevel 1 goto :docker_start_failed
+docker container inspect gambia_number_migrator_postgres >nul 2>nul
+if not errorlevel 1 (
+  echo Existing PostgreSQL container found. Reusing it without deleting data...
+  docker start gambia_number_migrator_postgres >nul
+  if errorlevel 1 goto :docker_start_failed
+) else (
+  echo Creating PostgreSQL database with Docker Compose...
+  docker compose up -d postgres
+  if errorlevel 1 goto :docker_start_failed
+)
 
 call :wait_db
 if errorlevel 1 goto :db_not_ready
@@ -65,7 +76,7 @@ echo.
 echo Next steps:
 echo  1. Double-click START_ALL.bat to run API, Admin and Mobile.
 echo  2. Admin: http://localhost:5173
-echo  3. Login with admin and your ADMIN_INITIAL_PASSWORD from .env
+echo  3. Login with username admin and ADMIN_INITIAL_PASSWORD from .env
 echo.
 echo You can also run only one service:
 echo  - START_API.bat
@@ -128,6 +139,14 @@ exit /b 1
 :error
 echo.
 echo SETUP FAILED. Read the error above.
-echo You can screenshot the error and send it to ChatGPT.
+echo You can screenshot the error and send it to OceanBrown support.
+pause
+exit /b 1
+
+:dependency_locked
+echo.
+echo SETUP STOPPED: Windows is still locking a generated dependency folder.
+echo Close VS Code and all old GNM/Expo windows, then run CLEAN_INSTALL_WINDOWS.bat once.
+echo After it says CLEAN INSTALL COMPLETE, run RUN_THIS_FIRST.bat again.
 pause
 exit /b 1

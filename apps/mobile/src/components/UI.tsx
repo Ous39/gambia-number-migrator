@@ -1,5 +1,5 @@
 import React, { useState, type ReactNode } from 'react';
-import { FlatList, Modal, Pressable, ScrollView, Text, TextInput, TouchableOpacity, View, type StyleProp, type ViewStyle } from 'react-native';
+import { ActivityIndicator, FlatList, Modal, Platform, Pressable, ScrollView, Text, TextInput, TouchableOpacity, View, type StyleProp, type ViewStyle } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, usePathname } from 'expo-router';
 import { getTone, radius, type Tone, useAppTheme, useResponsive } from '../appTheme';
@@ -73,9 +73,14 @@ export function ListScreen<T>({
         renderItem={({ item, index }) => <View style={wrapper}>{renderItem({ item, index })}</View>}
         ListHeaderComponent={header ? <View style={[wrapper, { paddingTop: 14 }]}>{header}</View> : null}
         ListFooterComponent={footer ? <View style={[wrapper, { paddingTop: 8, paddingBottom: bottomPad }]}>{footer}</View> : <View style={{ height: bottomPad }} />}
-        ListEmptyComponent={empty ? <View style={[wrapper, { paddingTop: 16 }]}>{empty}</View> : null}
+        ListEmptyComponent={empty ? <View style={[wrapper, { paddingTop: 16, paddingBottom: bottomPad }]}>{empty}</View> : null}
         contentContainerStyle={{ paddingTop: header ? 0 : 14, paddingBottom: 10 }}
         showsVerticalScrollIndicator={false}
+        initialNumToRender={12}
+        maxToRenderPerBatch={12}
+        updateCellsBatchingPeriod={40}
+        windowSize={7}
+        removeClippedSubviews={Platform.OS === 'android'}
       />
       <FixedBottomTabs />
     </SafeAreaView>
@@ -107,52 +112,73 @@ export function goBackOrHome() {
 }
 
 export function TopNav({
-  title = 'NumMigrate GM',
+  title = 'GNM',
   subtitle,
+  eyebrow,
   back = false,
   right,
   compact = false,
+  loading = false,
+  disabled = false,
 }: {
   title?: string;
   subtitle?: string;
+  /** Overrides the default "Private • On-device" line shown above the title when back is false. Pass '' to hide it. */
+  eyebrow?: string;
   back?: boolean;
   right?: ReactNode;
   compact?: boolean;
+  /** Shows a small spinner in place of the back icon (or beside the title when there's no back icon), for a header whose screen is still loading. */
+  loading?: boolean;
+  /** Dims the header and disables the back button and right-side actions, for a screen that must not be interacted with right now. */
+  disabled?: boolean;
 }) {
   const { colors, styles } = useAppTheme();
   const titleSize = back ? (compact ? 18 : 20) : (compact ? 22 : 24);
   const minHeight = back ? (compact ? 52 : 58) : (compact ? 56 : 66);
+  const eyebrowText = eyebrow ?? (!back ? 'Private • On-device' : '');
   return (
-    <View style={{ backgroundColor: colors.bg, paddingTop: 2, paddingBottom: compact ? 6 : 8, borderBottomWidth: 1, borderBottomColor: colors.line, zIndex: 50 }}>
-      <View style={[styles.header, { minHeight, paddingTop: 4, paddingBottom: back ? 5 : 9 }]}> 
-        <View style={[styles.row, { gap: back ? 8 : 10, flex: 1, minWidth: 0 }]}> 
-          {back ? <IconButton icon="left" onPress={goBackOrHome} tone="muted" size={42} /> : null}
+    <View style={{ backgroundColor: colors.bg, paddingTop: 2, paddingBottom: compact ? 6 : 8, borderBottomWidth: 1, borderBottomColor: colors.line, zIndex: 50, opacity: disabled ? 0.55 : 1 }}>
+      <View style={[styles.header, { minHeight, paddingTop: 4, paddingBottom: back ? 5 : 9 }]}>
+        <View style={[styles.row, { gap: back ? 8 : 10, flex: 1, minWidth: 0 }]}>
+          {back ? (
+            loading
+              ? <View style={{ width: 42, height: 42, alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator color={colors.primary} /></View>
+              : <IconButton icon="left" onPress={goBackOrHome} tone="muted" size={42} disabled={disabled} accessibilityLabel="Go back" />
+          ) : null}
           <View style={{ flex: 1, minWidth: 0, justifyContent: 'center' }}>
-            {!back ? <Text numberOfLines={1} style={[styles.eyebrow, { color: colors.primary }]}>Private • On-device</Text> : null}
-            <Text numberOfLines={1} style={[styles.title, { fontSize: titleSize, lineHeight: titleSize + 6, letterSpacing: -0.35 }]}>{title}</Text>
+            {eyebrowText ? <Text numberOfLines={1} style={[styles.eyebrow, { color: colors.primary }]}>{eyebrowText}</Text> : null}
+            <View style={[styles.row, { gap: 8 }]}>
+              <Text numberOfLines={2} style={[styles.title, { fontSize: titleSize, lineHeight: titleSize + 6, letterSpacing: -0.35, flexShrink: 1 }]}>{title}</Text>
+              {loading && !back ? <ActivityIndicator color={colors.primary} size="small" /> : null}
+            </View>
             {subtitle ? <Text numberOfLines={compact ? 1 : 2} style={[styles.small, { marginTop: 1, color: colors.muted }]}>{subtitle}</Text> : null}
           </View>
         </View>
-        {right ? <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 0 }}>{right}</View> : null}
+        {right ? <View pointerEvents={disabled ? 'none' : 'auto'} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 0 }}>{right}</View> : null}
       </View>
     </View>
   );
 }
 
-export function BackHeader({ title, subtitle, right, compact }: { title: string; subtitle?: string; right?: ReactNode; compact?: boolean }) {
-  return <TopNav title={title} subtitle={subtitle} back right={right} compact={compact} />;
+export function BackHeader({ title, subtitle, eyebrow, right, compact, loading, disabled }: { title: string; subtitle?: string; eyebrow?: string; right?: ReactNode; compact?: boolean; loading?: boolean; disabled?: boolean }) {
+  return <TopNav title={title} subtitle={subtitle} eyebrow={eyebrow} back right={right} compact={compact} loading={loading} disabled={disabled} />;
 }
 
-export function IconButton({ icon, onPress, tone = 'muted', size = 44 }: { icon: string; onPress: () => void; tone?: Tone; size?: number }) {
+const ICON_ACCESSIBILITY_LABELS: Record<string, string> = { left: 'Go back', notification: 'Notifications', refresh: 'Refresh', close: 'Close', check: 'Confirm' };
+
+export function IconButton({ icon, onPress, tone = 'muted', size = 44, disabled = false, accessibilityLabel }: { icon: string; onPress: () => void; tone?: Tone; size?: number; disabled?: boolean; accessibilityLabel?: string }) {
   const { colors } = useAppTheme();
   const t = getTone(colors, tone);
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={icon}
-      onPress={onPress}
+      accessibilityLabel={accessibilityLabel || ICON_ACCESSIBILITY_LABELS[icon] || icon}
+      accessibilityState={{ disabled }}
+      onPress={disabled ? undefined : onPress}
+      disabled={disabled}
       hitSlop={6}
-      style={({ pressed }) => ({ width: size, height: size, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', backgroundColor: t.bg, borderColor: t.border, borderWidth: 1, opacity: pressed ? 0.78 : 1 })}
+      style={({ pressed }) => ({ width: size, height: size, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', backgroundColor: t.bg, borderColor: t.border, borderWidth: 1, opacity: disabled ? 0.45 : pressed ? 0.78 : 1 })}
     >
       <AppIcon name={icon} color={t.fg} size={size > 40 ? 20 : 17} />
     </Pressable>
@@ -177,7 +203,7 @@ export function Card({ children, style, elevated = false, pressable = false, onP
   const { styles } = useAppTheme();
   const content = <View style={[elevated ? styles.glassCard : styles.card, style]}>{children}</View>;
   if (!pressable) return content;
-  return <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => ({ opacity: pressed ? 0.88 : 1 })}>{content}</Pressable>;
+  return <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => ({ opacity: pressed ? 0.88 : 1, transform: [{ scale: pressed ? 0.992 : 1 }] })}>{content}</Pressable>;
 }
 
 export function NoticeCard({ title, text, tone = 'primary', icon = 'info' }: { title: string; text: string; tone?: Tone; icon?: string }) {
@@ -201,11 +227,11 @@ export function MetricCard({ label, value, icon, tone = 'primary', helper, onPre
   const t = getTone(colors, tone);
   return (
     <Card pressable={!!onPress} onPress={onPress} style={{ minHeight: 116, padding: 14 }}>
-      <View style={[styles.rowBetween, { marginBottom: 10 }]}> 
-        <View style={{ width: 42, height: 42, borderRadius: 16, backgroundColor: t.bg, borderColor: t.border, borderWidth: 1, alignItems: 'center', justifyContent: 'center' }}>
+      <View style={[styles.rowBetween, { marginBottom: 10, alignItems: 'flex-start', gap: 8 }]}>
+        <View style={{ width: 42, height: 42, borderRadius: 16, backgroundColor: t.bg, borderColor: t.border, borderWidth: 1, alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
           <AppIcon name={icon} color={t.fg} size={19} />
         </View>
-        {helper ? <Pill text={helper} tone={tone} /> : onPress ? <AppIcon name="right" color={colors.softText} size={15} /> : null}
+        {helper ? <View style={{ flexShrink: 1, maxWidth: '55%' }}><Pill text={helper} tone={tone} /></View> : onPress ? <AppIcon name="right" color={colors.softText} size={15} /> : null}
       </View>
       <Text numberOfLines={1} adjustsFontSizeToFit style={{ color: colors.text, fontSize: 26, lineHeight: 32, fontWeight: '900' }}>{value}</Text>
       <Text numberOfLines={2} style={[styles.small, { color: colors.muted }]}>{label}</Text>
@@ -251,13 +277,14 @@ export function ActionTile({ title, text, icon, onPress, tone = 'primary', disab
 
 export function ProgressBar({ percent }: { percent: number }) {
   const { styles } = useAppTheme();
-  return <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${Math.min(100, Math.max(0, percent))}%` }]} /></View>;
+  const normalized = Math.min(100, Math.max(0, percent));
+  return <View accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: normalized }} style={styles.progressTrack}><View style={[styles.progressFill, { width: `${normalized}%` }]} /></View>;
 }
 
 export function Pill({ text, tone = 'primary' }: { text: string; tone?: Tone }) {
   const { colors, styles } = useAppTheme();
   const t = getTone(colors, tone);
-  return <Text numberOfLines={1} style={[styles.badgeText, { color: t.fg, backgroundColor: t.bg, borderColor: t.border, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 6, borderRadius: radius.pill, overflow: 'hidden' }]}>{text}</Text>;
+  return <Text numberOfLines={1} style={[styles.badgeText, { color: t.fg, backgroundColor: t.bg, borderColor: t.border, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 6, borderRadius: radius.pill, overflow: 'hidden', flexShrink: 1, alignSelf: 'flex-start' }]}>{text}</Text>;
 }
 
 export function EmptyState({ icon = 'info', title, text, action }: { icon?: string; title: string; text: string; action?: ReactNode }) {
@@ -292,6 +319,9 @@ export function SearchBox({ value, onChangeText, placeholder = 'Search contacts.
     <View style={[styles.input, { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 0, minHeight: 54, borderRadius: radius.lg }]}> 
       <AppIcon name="search" color={colors.softText} size={19} />
       <TextInput
+        accessibilityLabel={placeholder}
+        returnKeyType="search"
+        autoCorrect={false}
         style={{ color: colors.text, fontSize: 16, flex: 1, paddingVertical: 0, fontWeight: '600' }}
         placeholder={placeholder}
         placeholderTextColor={colors.softText}
@@ -311,7 +341,10 @@ export function FilterChip({ title, count, active, tone = 'muted', onPress }: { 
   const { colors } = useAppTheme();
   const t = getTone(colors, tone);
   return (
-    <TouchableOpacity
+      <TouchableOpacity
+      accessibilityRole="button"
+      accessibilityLabel={typeof count === 'number' ? `${title}, ${count}` : title}
+      accessibilityState={{ selected: Boolean(active) }}
       activeOpacity={0.84}
       onPress={onPress}
       style={{ minWidth: 88, borderRadius: radius.lg, paddingVertical: 10, paddingHorizontal: 12, alignItems: 'center', backgroundColor: active ? t.bg : colors.surface2, borderColor: active ? t.border : colors.line, borderWidth: 1 }}
@@ -339,12 +372,15 @@ function BottomTabsInner({ active }: { active: 'home' | 'preview' | 'cleanup' | 
         return (
           <TouchableOpacity
             key={tab.key}
+            accessibilityRole="tab"
+            accessibilityLabel={`${tab.label} tab`}
+            accessibilityState={{ selected: isActive }}
             activeOpacity={0.84}
             onPress={() => router.replace(tab.path as any)}
-          style={{ flex: 1, minHeight: 56, alignItems: 'center', justifyContent: 'center', paddingVertical: 7, borderRadius: radius.md, backgroundColor: center ? colors.primary : isActive ? colors.primarySoft : 'transparent', borderWidth: 0 }}
+            style={{ flex: 1, minHeight: 58, alignItems: 'center', justifyContent: 'center', paddingVertical: 7, borderRadius: radius.md, backgroundColor: center ? colors.primary : isActive ? colors.primarySoft : 'transparent', borderWidth: isActive && !center ? 1 : 0, borderColor: colors.primary }}
           >
             <AppIcon name={tab.icon} color={center ? colors.white : isActive ? colors.primary : colors.softText} size={20} />
-            <Text numberOfLines={1} adjustsFontSizeToFit style={{ color: center ? colors.white : isActive ? colors.primary : colors.softText, fontSize: 10, lineHeight: 13, fontWeight: '900', marginTop: 3 }}>{tab.label}</Text>
+            <Text numberOfLines={1} adjustsFontSizeToFit maxFontSizeMultiplier={1.2} style={{ color: center ? colors.white : isActive ? colors.primary : colors.softText, fontSize: 11, lineHeight: 14, fontWeight: '900', marginTop: 3 }}>{tab.label}</Text>
           </TouchableOpacity>
         );
       })}
@@ -371,7 +407,7 @@ export function FloatingActionBar({ children, aboveTabs = true }: { children: Re
   const r = useResponsive();
   const insets = useSafeAreaInsets();
   return (
-    <View pointerEvents="box-none" style={{ position: 'absolute', left: 0, right: 0, bottom: aboveTabs ? Math.max(104, insets.bottom + 104) : Math.max(14, insets.bottom + 10), alignItems: 'center' }}>
+    <View pointerEvents="box-none" style={{ position: 'absolute', left: 0, right: 0, bottom: aboveTabs ? Math.max(108, insets.bottom + 108) : Math.max(14, insets.bottom + 10), alignItems: 'center', zIndex: 70, elevation: 24 }}>
       <View style={{ width: '100%', maxWidth: r.maxWidth as any, paddingHorizontal: r.horizontalPadding }}>{children}</View>
     </View>
   );
@@ -440,10 +476,10 @@ export function AppDialog({
   const { colors, styles } = useAppTheme();
   const t = getTone(colors, tone);
   return (
-    <Modal transparent visible={visible} animationType="none" onRequestClose={onClose}>
+    <Modal transparent visible={visible} animationType="fade" onRequestClose={onClose} statusBarTranslucent>
       <View style={{ flex: 1, backgroundColor: colors.isDark ? 'rgba(0,0,0,0.68)' : 'rgba(3,18,30,0.30)', justifyContent: 'center', padding: 22 }}>
         <Pressable style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} onPress={onClose} />
-        <View style={[styles.glassCard, { width: '100%', maxWidth: 430, alignSelf: 'center', padding: 20, borderColor: t.border, backgroundColor: colors.cardStrong }]}>
+        <View accessibilityViewIsModal accessibilityRole="alert" style={[styles.glassCard, { width: '100%', maxWidth: 430, alignSelf: 'center', padding: 20, borderColor: t.border, backgroundColor: colors.cardStrong }]}>
           <View style={[styles.row, { gap: 14, alignItems: 'flex-start' }]}> 
             <View style={{ width: 48, height: 48, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: t.bg, borderColor: t.border, borderWidth: 1 }}>
               <AppIcon name={icon} color={t.fg} size={22} />
@@ -452,7 +488,7 @@ export function AppDialog({
               <Text style={{ color: colors.text, fontWeight: '900', fontSize: 20, lineHeight: 25 }}>{title}</Text>
               {message ? <Text style={[styles.body, { marginTop: 8 }]}>{message}</Text> : null}
             </View>
-            <TouchableOpacity onPress={onClose} activeOpacity={0.78} style={{ width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface2 }}>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Close dialog" onPress={onClose} activeOpacity={0.78} style={{ width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface2 }}>
               <AppIcon name="close" color={colors.softText} size={18} />
             </TouchableOpacity>
           </View>

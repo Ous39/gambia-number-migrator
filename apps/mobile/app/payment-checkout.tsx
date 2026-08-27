@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Keyboard, KeyboardAvoidingView, Platform, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Image, Keyboard, KeyboardAvoidingView, Platform, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback } from 'react';
 import { Button } from '../src/components/Button';
@@ -55,6 +55,7 @@ export default function PaymentCheckout() {
   const params = useLocalSearchParams<{ provider?: string; amount?: string }>();
   const [provider, setProvider] = useState<Provider>(params.provider === 'aps' ? 'aps' : 'wave');
   const [amount, setAmount] = useState(Number(params.amount || 100) || 100);
+  const [approvedProviders, setApprovedProviders] = useState<Provider[]>([]);
   const [access, setAccess] = useState<AccessStatus | null>(null);
   const [priceLoading, setPriceLoading] = useState(true);
   const meta = providerMeta[provider];
@@ -94,6 +95,9 @@ export default function PaymentCheckout() {
       if (!active) return;
       const current = Number(config.subscription_price);
       if (Number.isFinite(current) && current > 0) setAmount(current);
+      const approved = (['wave', 'aps'] as Provider[]).filter((item) => config[`${item}_payment_enabled`] === true);
+      setApprovedProviders(approved);
+      if (approved.length && !approved.includes(provider)) setProvider(approved[0]);
       setAccess(status);
     }).catch((error) => {
       if (active) showDialog({ title: 'Could not load live price', message: error?.message || 'Connect to the internet and try again. Payment is disabled until the current price is confirmed.', tone: 'warning', icon: 'warning' });
@@ -114,6 +118,10 @@ export default function PaymentCheckout() {
 
   async function sendOtp() {
     if (priceLoading) return;
+    if (!approvedProviders.includes(provider)) {
+      showDialog({ title: 'Payment option unavailable', message: 'This wallet has not been enabled by GNM. Choose an approved payment option or try again later.', tone: 'warning', icon: 'shield' });
+      return;
+    }
     const latest = await getAccessStatus();
     if (latest.status === 'active') { setAccess(latest); return; }
     if (!canPay) {
@@ -144,7 +152,8 @@ export default function PaymentCheckout() {
   async function confirmPayment() {
     setBusy(true);
     try {
-      const result = await verifyPaymentOtp(reference, otp);
+      const deviceId = await getDeviceFingerprint();
+      const result = await verifyPaymentOtp(reference, otp, deviceId);
       if (result.status !== 'success') throw new Error('Payment has not been confirmed');
       await markFeatureUnlocked(PREMIUM_FEATURES.bulkUnlock, reference);
       setStep('success');
@@ -166,6 +175,23 @@ export default function PaymentCheckout() {
         <Text style={[styles.body, { textAlign: 'center' }]}>{access.promotional ? 'You received a promotional place. No payment is required on this device.' : 'Your full Contact Migration Pass is active on this device.'}</Text>
         <Button title="Continue to Dashboard" icon="right" onPress={() => router.replace('/dashboard')} style={{ width: '100%', minHeight: 58 }} />
       </Card>
+    </Screen>
+  );
+
+  if (!priceLoading && approvedProviders.length === 0) return (
+    <Screen scroll={false}>
+      <BackHeader title="Contact Migration Pass" subtitle="Payment availability" compact />
+      <View style={{ flex: 1, justifyContent: 'center' }}>
+        <Card elevated style={{ alignItems: 'center', gap: 14, padding: 24 }}>
+          <View style={{ width: 92, height: 92, borderRadius: 46, backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' }}><AppIcon name="shield" color={colors.primary} size={38} /></View>
+          <Pill text="PAYMENTS COMING SOON" tone="blue" />
+          <Text style={{ color: colors.text, fontSize: 27, lineHeight: 33, fontWeight: '900', textAlign: 'center' }}>No wallet is enabled yet</Text>
+          <Text style={[styles.body, { textAlign: 'center' }]}>Wave and APS will appear here only after OceanBrown confirms the provider arrangement and completes secure production testing.</Text>
+          <NoticeCard title="You will not be charged" text="No payment request can be created while all wallets are disabled. You can continue using any available free or promotional access." tone="success" icon="lock" />
+          <Button title="Back to Dashboard" icon="home" onPress={() => router.replace('/dashboard')} style={{ width: '100%' }} />
+        </Card>
+      </View>
+      <Dialog />
     </Screen>
   );
 
@@ -195,18 +221,21 @@ export default function PaymentCheckout() {
               <View>
                 <Text style={{ color: colors.text, fontSize: 16, fontWeight: '900', marginBottom: 10 }}>Choose payment provider</Text>
                 <View style={{ flexDirection: 'row', gap: 10 }}>
-                  {(['wave', 'aps'] as Provider[]).map((item) => {
+                  {approvedProviders.map((item) => {
                     const itemMeta = providerMeta[item];
                     const itemTone = getTone(colors, itemMeta.tone);
                     const active = provider === item;
                     return (
                       <TouchableOpacity
+                        accessibilityRole="radio"
+                        accessibilityLabel={`${itemMeta.title} payment provider`}
+                        accessibilityState={{ checked: active }}
                         key={item}
                         activeOpacity={0.84}
                         onPress={() => setProvider(item)}
                         style={{
                           flex: 1,
-                          minHeight: 92,
+                          minHeight: 76,
                           borderRadius: 20,
                           alignItems: 'center',
                           justifyContent: 'center',
@@ -216,8 +245,8 @@ export default function PaymentCheckout() {
                         }}
                       >
                         {active ? <View style={{ position: 'absolute', right: 8, top: 8, width: 24, height: 24, borderRadius: 12, backgroundColor: itemTone.fg, alignItems: 'center', justifyContent: 'center' }}><AppIcon name="check" color={colors.white} size={14} /></View> : null}
-                        <View style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: itemTone.fg, alignItems: 'center', justifyContent: 'center' }}>
-                          {item === 'aps' ? <Text style={{ color: colors.white, fontWeight: '900', fontSize: 15 }}>APS</Text> : <AppIcon name="phone" color={colors.white} size={20} />}
+                        <View style={{ width: 48, height: 48, borderRadius: 16, backgroundColor: colors.white, borderWidth: 1, borderColor: itemTone.border, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                          <Image source={item === 'aps' ? require('../assets/aps-logo.png') : require('../assets/wave-logo.png')} resizeMode="contain" style={{ width: 44, height: 44 }} accessibilityLabel={`${itemMeta.title} logo`} />
                         </View>
                         <Text style={{ color: colors.text, fontSize: 16, fontWeight: '900', marginTop: 6 }}>{itemMeta.title}</Text>
                       </TouchableOpacity>
@@ -254,6 +283,8 @@ export default function PaymentCheckout() {
                 <View style={[styles.row, { minHeight: 56 }]}> 
                   <View style={{ width: 48, alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center' }}><AppIcon name="phone" color={colors.softText} size={20} /></View>
                   <TextInput
+                    accessibilityLabel="Payment phone number"
+                    accessibilityHint="Enter a seven or nine digit Gambian phone number"
                     value={phone}
                     onChangeText={handlePhoneChange}
                     onFocus={() => setPhoneFocused(true)}
@@ -270,7 +301,7 @@ export default function PaymentCheckout() {
                     selectionColor={tone.fg}
                     style={{ flex: 1, minWidth: 0, minHeight: 56, paddingHorizontal: 4, color: colors.text, fontSize: 17, fontWeight: '800', opacity: step === 'phone' ? 1 : 0.72 }}
                   />
-                  <TouchableOpacity disabled={!phone.length} onPress={() => { setPhone(''); setInputNote(''); }} activeOpacity={0.75} style={{ width: 46, alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center' }}>
+                  <TouchableOpacity accessibilityRole="button" accessibilityLabel={canPay ? 'Phone number is valid' : 'Clear phone number'} disabled={!phone.length} onPress={() => { setPhone(''); setInputNote(''); }} activeOpacity={0.75} style={{ width: 46, alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center' }}>
                     <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: canPay ? colors.successSoft : colors.surface2, borderWidth: 1, borderColor: canPay ? colors.success : colors.border, alignItems: 'center', justifyContent: 'center' }}>
                       <AppIcon name={canPay ? 'check' : phone.length ? 'close' : 'phone'} color={canPay ? colors.success : colors.softText} size={17} />
                     </View>
@@ -289,6 +320,7 @@ export default function PaymentCheckout() {
                 <Text style={{ color: colors.text, fontSize: 22, fontWeight: '900', textAlign: 'center' }}>Enter verification code</Text>
                 <Text style={[styles.body, { textAlign: 'center', marginTop: 5, marginBottom: 16 }]}>We sent a 4-digit code to +220 {maskedPhone}</Text>
                 <TextInput
+                  accessibilityLabel="Four digit payment verification code"
                   value={otp}
                   onChangeText={(v) => setOtp(v.replace(/\D/g, '').slice(0, 4))}
                   placeholder="0000"
@@ -298,8 +330,8 @@ export default function PaymentCheckout() {
                   autoFocus
                   style={[styles.input, { width: '100%', textAlign: 'center', fontSize: 30, letterSpacing: 14, fontWeight: '900', minHeight: 70, borderRadius: 22, borderColor: otp.length === 4 ? colors.success : tone.border }]}
                 />
-                {sentOtp ? <View style={{ width: '100%', marginTop: 12, padding: 12, borderRadius: 16, backgroundColor: colors.warningSoft, borderWidth: 1, borderColor: colors.warning }}><Text style={{ color: colors.warning, fontWeight: '900', textAlign: 'center' }}>LOCAL TEST CODE · {sentOtp}</Text><TouchableOpacity onPress={() => setOtp(sentOtp)} style={{ marginTop: 8 }}><Text style={{ color: colors.primary, fontWeight: '900', textAlign: 'center' }}>Use test code</Text></TouchableOpacity></View> : null}
-                <TouchableOpacity activeOpacity={0.82} disabled={busy} onPress={sendOtp} style={{ marginTop: 16, padding: 8 }}><Text style={{ color: tone.fg, fontWeight: '900' }}>Didn’t receive it? Resend code</Text></TouchableOpacity>
+                {sentOtp ? <View style={{ width: '100%', marginTop: 12, padding: 12, borderRadius: 16, backgroundColor: colors.warningSoft, borderWidth: 1, borderColor: colors.warning }}><Text style={{ color: colors.warning, fontWeight: '900', textAlign: 'center' }}>LOCAL TEST CODE · {sentOtp}</Text><TouchableOpacity accessibilityRole="button" accessibilityLabel="Use local test code" onPress={() => setOtp(sentOtp)} style={{ marginTop: 8, minHeight: 44, justifyContent: 'center' }}><Text style={{ color: colors.primary, fontWeight: '900', textAlign: 'center' }}>Use test code</Text></TouchableOpacity></View> : null}
+                <TouchableOpacity accessibilityRole="button" accessibilityLabel="Resend verification code" activeOpacity={0.82} disabled={busy} onPress={sendOtp} style={{ marginTop: 12, padding: 8, minHeight: 44, justifyContent: 'center' }}><Text style={{ color: tone.fg, fontWeight: '900' }}>Didn’t receive it? Resend code</Text></TouchableOpacity>
               </View>
             ) : null}
 
@@ -319,7 +351,7 @@ export default function PaymentCheckout() {
               </View>
             )}
           </Card>
-          {step === 'phone' ? <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, marginTop: 10 }}><AppIcon name="shield" color={colors.softText} size={15} /><Text style={{ color: colors.softText, fontSize: 12, fontWeight: '700' }}>Secure payment · Contacts stay private</Text></View> : null}
+          {step === 'phone' ? <Text style={{ color: colors.softText, fontSize: 12, fontWeight: '700', textAlign: 'center', marginTop: 8 }}>Secure payment · Contacts stay private</Text> : null}
         </Section>
       ) : (
         <Section title="Payment receipt" style={{ marginTop: 16 }}>
@@ -355,34 +387,11 @@ function PaymentHero({ amount }: { amount: number }) {
   return (
     <View style={{ borderRadius: 28, overflow: 'hidden', backgroundColor: colors.brandTop, marginBottom: 0, borderWidth: 1, borderColor: colors.border }}>
       <View style={{ position: 'absolute', right: -72, top: -76, width: 200, height: 200, borderRadius: 100, backgroundColor: colors.brandBubble }} />
-      <View style={{ paddingVertical: 18, paddingHorizontal: 20, alignItems: 'center' }}>
-        <Text style={{ color: colors.white, fontSize: 46, lineHeight: 52, fontWeight: '900', letterSpacing: -1.2 }}>D{amount}</Text>
-        <Text style={{ color: 'rgba(255,255,255,0.82)', fontWeight: '700', marginTop: 3 }}>One-time contact migration payment</Text>
+      <View style={{ paddingVertical: 12, paddingHorizontal: 18, alignItems: 'center' }}>
+        <Text style={{ color: colors.white, fontSize: 36, lineHeight: 42, fontWeight: '900', letterSpacing: -1 }}>D{amount}</Text>
+        <Text style={{ color: 'rgba(255,255,255,0.82)', fontWeight: '700', fontSize: 12 }}>One-time migration pass</Text>
       </View>
     </View>
-  );
-}
-
-function StepTracker({ step }: { step: Step }) {
-  const activeIndex = step === 'phone' ? 1 : step === 'otp' ? 2 : 3;
-  const labels = ['Method', 'Details', 'Verify', 'Success'];
-  const { colors } = useAppTheme();
-  return (
-    <Card style={{ padding: 14, borderRadius: 24 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-        {labels.map((label, idx) => {
-          const active = idx <= activeIndex;
-          return (
-            <View key={label} style={{ flex: 1, alignItems: 'center' }}>
-              <View style={{ width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: active ? colors.primary : colors.surface3, borderWidth: 1, borderColor: active ? colors.primary : colors.border }}>
-                <Text style={{ color: active ? colors.white : colors.softText, fontWeight: '900' }}>{idx + 1}</Text>
-              </View>
-              <Text numberOfLines={1} style={{ color: active ? colors.primary : colors.softText, marginTop: 6, fontSize: 11, fontWeight: '900' }}>{label}</Text>
-            </View>
-          );
-        })}
-      </View>
-    </Card>
   );
 }
 

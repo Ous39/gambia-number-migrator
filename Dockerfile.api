@@ -19,4 +19,4 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/packages/shared ./packages/shared
 COPY --from=build /app/apps/api ./apps/api
 EXPOSE 8089
-CMD ["sh", "-c", "pnpm --filter @gnm/api db:migrate && pnpm --filter @gnm/api db:seed && pnpm --filter @gnm/api start"]
+CMD ["sh", "-c", "pnpm --filter @gnm/api db:migrate && pnpm --filter @gnm/api start"]

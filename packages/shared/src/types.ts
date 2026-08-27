@@ -117,6 +117,11 @@ export interface MigrationCandidate {
 export interface CleanupCandidate {
   contactId: string;
   contactName: string;
+  /** Index of the old-number phone row on the contact. Distinguishes two
+   * candidates that share the same contact/old/new numbers (e.g. a contact
+   * with the exact same 7-digit number saved twice) so UI list keys and
+   * downstream matching stay unique per phone row rather than per value. */
+  phoneIndex: number;
   oldNumber: string;
   newNumber: string;
   operatorName?: string;

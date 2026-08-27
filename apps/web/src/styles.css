@@ -180,7 +180,6 @@ p { color: var(--ink-soft); }
 .brand { display: flex; align-items: center; gap: 11px; }
 .brand-mark { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; font-weight: 900; font-size: 19px; color: #fff; background: linear-gradient(135deg, var(--brand), var(--brand-strong)); box-shadow: 0 6px 16px color-mix(in srgb, var(--brand) 30%, transparent); }
 .brand-logo { width: 40px; height: 40px; border-radius: 11px; object-fit: cover; flex: none; box-shadow: var(--shadow-sm); background: #0b211a; }
-.phone-app-head .brand-logo { width: 28px; height: 28px; border-radius: 8px; box-shadow: none; }
 .brand b { font-size: 17px; display: block; letter-spacing: -.02em; }
 .brand small { font-size: 8px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-faint); }
 .nav-links { display: flex; align-items: center; gap: 28px; font-weight: 650; font-size: .92rem; }
@@ -213,18 +212,29 @@ footer.site { border-top: 1px solid var(--line); background: var(--bg-soft); pad
 .trust-row { display: flex; gap: 20px; flex-wrap: wrap; margin-top: var(--space-4); font-size: .82rem; color: var(--ink-faint); font-weight: 600; }
 .trust-row span { display: flex; align-items: center; gap: 7px; }
 
-/* phone mock */
-.phone { position: relative; margin-inline: auto; width: 270px; border: 8px solid var(--ink); border-radius: 40px; background: var(--surface); box-shadow: var(--shadow-lg); overflow: hidden; }
-.phone-notch { height: 22px; position: relative; } .phone-notch::after { content: ""; position: absolute; left: 50%; top: 6px; transform: translateX(-50%); width: 92px; height: 16px; background: var(--ink); border-radius: 12px; }
-.phone-screen { padding: 18px; }
-.phone-app-head { display: flex; align-items: center; gap: 9px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
-.phone-app-head .brand-mark { width: 28px; height: 28px; border-radius: 8px; font-size: 13px; }
-.phone-app-head b { font-size: 12px; } .phone-app-head small { font-size: 8px; color: var(--ink-faint); }
-.phone-row { display: flex; align-items: center; gap: 10px; padding: 11px; margin-top: 12px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px; }
-.phone-row .num { font-weight: 800; font-size: 15px; }
-.phone-row .old { color: var(--danger); text-decoration: line-through; font-size: 12px; }
-.phone-row .new { color: var(--accent); font-weight: 800; font-size: 13px; }
-.phone-cta { margin-top: 14px; background: var(--brand); color: #fff; text-align: center; padding: 11px; border-radius: 10px; font-size: 12px; font-weight: 800; }
+/* phone showcase — real app screenshots inside a device frame */
+.phone-showcase { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+.phone-frame {
+  position: relative; width: min(300px, 76vw); aspect-ratio: 1170 / 2532;
+  border-radius: 46px; border: 11px solid #0d1626; background: #0d1626;
+  box-shadow: var(--shadow-lg); overflow: hidden;
+}
+:root[data-theme="dark"] .phone-frame,
+:root:not([data-theme="light"]) .phone-frame { border-color: #05070c; background: #05070c; }
+.phone-shot {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; object-position: top center;
+  opacity: 0; transition: opacity .55s ease;
+}
+.phone-shot.is-active { opacity: 1; }
+.phone-shot-fallback {
+  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px; background: var(--surface); color: var(--ink-faint); text-align: center; padding: 20px;
+}
+.phone-shot-fallback b { font-size: 1.2rem; color: var(--ink); }
+.phone-dots { display: flex; gap: 7px; }
+.phone-dots button { width: 7px; height: 7px; padding: 0; border: 0; border-radius: 5px; background: var(--line-strong); cursor: pointer; transition: width .2s ease, background .2s ease; }
+.phone-dots button.is-active { width: 20px; background: var(--brand); }
 
 /* feature / step grids */
 .tri { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-4); margin-top: var(--space-5); }

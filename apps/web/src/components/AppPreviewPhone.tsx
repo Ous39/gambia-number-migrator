@@ -5,7 +5,9 @@ import { useEffect, useState } from 'react';
 const SHOTS = [
   { src: '/screens/dashboard.png', label: 'Dashboard' },
   { src: '/screens/scan.png', label: 'Scan complete' },
-  { src: '/screens/preview.png', label: 'Preview changes' },
+  { src: '/screens/preview.webp', label: 'Preview changes' },
+  { src: '/screens/history.png', label: 'History' },
+  { src: '/screens/settings.png', label: 'Privacy & settings' },
 ];
 
 export function AppPreviewPhone() {
@@ -27,9 +29,8 @@ export function AppPreviewPhone() {
             className={`phone-shot ${i === index ? 'is-active' : ''}`}
             src={shot.src}
             alt={i === index ? `GNM app — ${shot.label}` : ''}
-            loading={i === 0 ? 'eager' : 'lazy'}
             decoding="async"
-            onError={() => setFailed(true)}
+            onError={() => { if (i === 0) setFailed(true); }}
           />
         ))}
         {failed && (

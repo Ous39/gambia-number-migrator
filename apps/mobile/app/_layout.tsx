@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import Constants from 'expo-constants';
 import * as SplashScreen from 'expo-splash-screen';
 import { AppThemeProvider } from '../src/appTheme';
+import { ensureAndroidChannel } from '../src/services/notificationService';
 
 // Keep the native splash visible until the first application frame is ready.
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
@@ -16,6 +17,7 @@ export default function RootLayout() {
     // Expo Go no longer supports remote push on SDK 53+. Load notifications only
     // in development/production builds so local Expo Go testing stays warning-free.
     if (Constants.appOwnership === 'expo' || String((Constants as any).executionEnvironment || '').toLowerCase() === 'storeclient') return;
+    void ensureAndroidChannel();
     let remove: (() => void) | undefined;
     import('expo-notifications').then((Notifications) => {
       // Do not replay an old notification response on every cold start. Expo

@@ -18,7 +18,9 @@ for that, see `GNM-v1.0.0-FINAL-AUDIT.md`.
 |---|---|
 | Price is **D25 GMD** everywhere | `app_config.subscription_price = 25` (migration `021`); API `create-intent` and `apps/mobile` both charge from `subscription_price`; new migration `026` also aligns the stale `pricing` blob and any legacy `100` default to 25. |
 | Type safety | `pnpm typecheck` — shared, api, admin, web, mobile all pass, no `any`/`@ts-ignore` added. |
-| Tests | `pnpm test` — api 64 (incl. new wave-signature 12, payments-route 11, secrets-hygiene 3), mobile 43, admin 7, web 6, shared 18. All pass. |
+| Tests | `pnpm test` — api 69 (incl. wave-signature 12, payments-route 11, secrets-hygiene 3, devices-admin-access 5), mobile 43, admin 7, web 6, shared 18. All pass. |
+| Testers can be granted access without Wave | Admin → App configuration → **Campaign mode** (`off` / `first N` / `all`) — existing, unchanged. **And** Admin → Support devices → **Grant full access** per device (`access_source='admin'`, revocable, audited). |
+| Android push code | Verified correct end-to-end (Expo push + FCM v1, tickets, receipts, channel). Delivery needs Firebase credentials — see `ANDROID_PUSH_SETUP.md`; the app id `gm.oceanbrown.gnm` is set, `app.config.js` auto-wires `google-services.json` when present. |
 | Production builds | `pnpm build` — api (`tsc`), admin, web (Vite), mobile (`expo export`) all exit 0. |
 | API boots in production with **Wave disabled** | Simulated `NODE_ENV=production … PAYMENT_PROVIDER_INTEGRATION_READY=false` → loads clean. A disabled provider never blocks boot. |
 | API **refuses to boot** if Wave is "armed" but misconfigured | `PAYMENT_PROVIDER_INTEGRATION_READY=true` with missing/`http` Wave values → throws `Invalid production configuration: …`. |
@@ -54,7 +56,7 @@ These are **not** introduced by this branch; noting them so "ready for productio
 | Area | Status / action |
 |---|---|
 | `.env.production` (VPS) | The copy in this workspace is a UTF-16 placeholder stub. The real file on the VPS must contain a strong `JWT_SECRET` (≥32 chars, non-placeholder), `DATABASE_URL`, `CORS_ORIGIN` = the real admin origin, and (when arming Wave) the full `WAVE_*` block. It is git-ignored — never commit it. |
-| Firebase / push | `apps/mobile/google-services.json` is absent (removed at v1.0.0 for the package rename). Remote push-token registration fails gracefully; add a fresh config for `gm.oceanbrown.gnm` before relying on push. Not a payment blocker. |
+| Firebase / push | Android push delivery needs `apps/mobile/google-services.json` + an FCM v1 service-account key in EAS. Follow `ANDROID_PUSH_SETUP.md`, then rebuild. In-app completion notifications work now; remote push stays off until the credentials are added. Not a payment blocker. |
 | Migrations on prod DB | Run `025` + `026` against a **restored copy of production** first (`WAVE_DEPLOYMENT_AND_ROLLBACK.md` §2). Could not be executed here (no Docker/Postgres in this environment). |
 | Device attestation | Registration abuse protection is per-IP rate limiting only (documented `TODO` for App Attest / Play Integrity). Accepted risk at v1.0.0. |
 | Legal pages | `https://gnm.oceanbrown.gm/privacy`, `/terms`, and a new `/refunds` must be live and reachable before Wave onboarding and store review. |

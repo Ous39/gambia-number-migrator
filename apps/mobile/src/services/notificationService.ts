@@ -19,6 +19,32 @@ async function notifications() {
   return module;
 }
 
+/**
+ * Create the Android 'general' notification channel. Android drops a push if its
+ * channel does not exist, and `expo-notifications`' `defaultChannel` plugin
+ * option only wires the manifest key — the channel itself must be created in JS.
+ * Safe to call on every launch; called from the root layout so a push that
+ * arrives before the user ever opens Settings is still shown.
+ */
+export async function ensureAndroidChannel(): Promise<void> {
+  if (Platform.OS !== 'android' || !Device.isDevice || isExpoGo()) return;
+  try {
+    const Notifications = await notifications();
+    if (!Notifications) return;
+    await Notifications.setNotificationChannelAsync('general', {
+      name: 'Important updates',
+      description: 'Migration and service announcements',
+      importance: Notifications.AndroidImportance.MAX,
+      sound: 'default',
+      enableVibrate: true,
+      vibrationPattern: [0, 250, 180, 250],
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+      showBadge: true,
+      bypassDnd: false,
+    });
+  } catch { /* non-fatal: setup path recreates it too */ }
+}
+
 async function finish(result: Omit<NotificationSetupResult, 'updatedAt'>) {
   const value = { ...result, updatedAt: new Date().toISOString() };
   await setJson(keys.notificationStatus, value).catch(() => undefined);

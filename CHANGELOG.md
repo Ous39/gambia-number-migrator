@@ -48,9 +48,24 @@ production credentials.
 - Payments page shows a provider-configuration health panel (`configured` / `missing` / currency /
   key tail — no secrets) and hides "Confirm test" outside test mode.
 
+**Admin: manual device access grant**
+- New `POST /admin/devices/:id/grant-access` and `/revoke-access` (`apps/api/src/routes/devices.ts`):
+  an administrator can give one device full access with no payment (testing, support, or a fallback
+  while a provider is not live). Tracked as `access_source='admin'`, distinct from `paid`/`campaign`;
+  revoke only affects an admin grant. Buttons added to Admin → Support devices; audited. The
+  free-access **campaign** (Admin → App configuration → Campaign mode) is unchanged and remains the
+  other no-payment path.
+
+**Android push**
+- Notification app/server code was already complete; Android delivery is blocked only by missing
+  Firebase/FCM credentials for `gm.oceanbrown.gnm`. Added `ANDROID_PUSH_SETUP.md` (Firebase +
+  `eas credentials` steps + verification). `notificationService.ts` gains `ensureAndroidChannel()`,
+  now called from `app/_layout.tsx` on every launch so the `general` channel always exists.
+
 **Tests**
 - `apps/api/tests/wave-signature.test.ts` (12), `payments-route.test.ts` (11),
-  `secrets-hygiene.test.ts` (3). `pnpm typecheck`, `pnpm test`, `pnpm build` all green.
+  `secrets-hygiene.test.ts` (3), `devices-admin-access.test.ts` (5). `pnpm typecheck`, `pnpm test`
+  (api 69, mobile 43, admin 7, web 6, shared 18), `pnpm build` all green.
 
 ## GNM 1.0.0 — 2026-08-27 (release-identity, store-policy audit, campaign audit trail, header consolidation)
 

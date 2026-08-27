@@ -209,3 +209,37 @@ devicesRouter.post('/admin/devices/:id/restore-paid-access', requireAdmin, async
     res.json({ data: publicDevice(r.rows[0], { paymentReference: payment.rows[0].reference }) });
   } catch (e) { next(e); }
 });
+
+// Administrative comp grant: give one device full access with no payment
+// (testing, support goodwill, or as a fallback while a provider is not live).
+// Tracked as access_source='admin' so it is distinct from 'paid' and 'campaign'
+// and can be revoked without disturbing genuine paid or promotional access.
+devicesRouter.post('/admin/devices/:id/grant-access', requireAdmin, async (req, res, next) => {
+  try {
+    const before = await query('SELECT * FROM devices WHERE id=$1 LIMIT 1', [req.params.id]);
+    if (!before.rowCount) return res.status(404).json({ message: 'Device not found' });
+    if (before.rows[0].status === 'blocked') return res.status(409).json({ message: 'Unblock this device before granting access.' });
+    const r = await query(
+      "UPDATE devices SET status='active', access_source='admin', subscribed_at=COALESCE(subscribed_at,NOW()), updated_at=NOW() WHERE id=$1 AND status<>'blocked' RETURNING *",
+      [req.params.id]
+    );
+    await audit(req, 'admin_access_granted', 'device', String(req.params.id), before.rows[0], r.rows[0]);
+    res.json({ data: publicDevice(r.rows[0]) });
+  } catch (e) { next(e); }
+});
+
+devicesRouter.post('/admin/devices/:id/revoke-access', requireAdmin, async (req, res, next) => {
+  try {
+    const before = await query('SELECT * FROM devices WHERE id=$1 LIMIT 1', [req.params.id]);
+    if (!before.rowCount) return res.status(404).json({ message: 'Device not found' });
+    if (before.rows[0].access_source !== 'admin') {
+      return res.status(409).json({ message: 'Only an administrative access grant can be revoked here. Paid and campaign access are managed separately.' });
+    }
+    const r = await query(
+      "UPDATE devices SET status='trial', access_source='trial', updated_at=NOW() WHERE id=$1 AND access_source='admin' RETURNING *",
+      [req.params.id]
+    );
+    await audit(req, 'admin_access_revoked', 'device', String(req.params.id), before.rows[0], r.rows[0]);
+    res.json({ data: publicDevice(r.rows[0]) });
+  } catch (e) { next(e); }
+});

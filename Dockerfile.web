@@ -11,7 +11,6 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/web/package.json apps/web/package.json
 COPY packages/shared/package.json packages/shared/package.json
 RUN pnpm install --frozen-lockfile
-COPY tsconfig.base.json ./
 COPY packages/shared packages/shared
 COPY apps/web apps/web
 RUN pnpm --filter @gnm/shared build && pnpm --filter @gnm/web build

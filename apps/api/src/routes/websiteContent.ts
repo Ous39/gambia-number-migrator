@@ -46,7 +46,17 @@ websiteContentRouter.get('/admin/website-content', requireAdmin, async (_req, re
 
 const announcementSchema = z.object({ title: z.string().trim().min(2).max(160), body: z.string().trim().min(2).max(4000), summary: z.string().trim().max(280).optional().or(z.literal('').transform(() => undefined)), status: z.enum(['draft', 'published']).default('draft') });
 const faqSchema = z.object({ question: z.string().trim().min(2).max(300), answer: z.string().trim().min(2).max(2000), sortOrder: z.coerce.number().int().min(0).max(10000).default(0) });
-const optionalUrl = z.string().trim().max(500).regex(/^https?:\/\//, 'Use a full http(s) URL').optional().or(z.literal('').transform(() => undefined));
+const emptyToUndefined = (value: unknown) => (typeof value === 'string' && value.trim() === '' ? undefined : value);
+// Full external URL (portfolio link etc.).
+const optionalUrl = z.preprocess(
+  emptyToUndefined,
+  z.string().trim().max(500).regex(/^https?:\/\//, 'Use a full http(s) URL').optional()
+);
+// A team photo is either an uploaded asset path (/uploads/…) or a full URL.
+const optionalPhoto = z.preprocess(
+  emptyToUndefined,
+  z.string().trim().max(500).regex(/^(https?:\/\/|\/uploads\/)/, 'Upload a photo or paste a full http(s) URL').optional()
+);
 const teamMemberSchema = z.object({
   name: z.string().trim().min(2).max(120),
   role: z.string().trim().min(2).max(120),

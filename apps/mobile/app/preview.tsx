@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { FlatList, Platform, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Button } from '../src/components/Button';
 import { BackHeader, Card, EmptyState, FilterChip, FixedBottomTabs, FloatingActionBar, OperatorBadge, Pill, SearchBox, useAppDialog } from '../src/components/UI';
 import { AppIcon } from '../src/components/AppIcon';
-import { applyDuplicateAdd, applyReplace } from '../src/services/contactsService';
+import { SCAN_SCHEMA_VERSION, applyDuplicateAdd, applyReplace } from '../src/services/contactsService';
 import { getJson, keys } from '../src/services/storage';
 import { authorizeMigration, getAccessStatus, settleMigrationAllowance, type AccessStatus } from '../src/services/unlockService';
 import { getTone, radius, type Tone, useAppTheme, useResponsive } from '../src/appTheme';
 import { hasApprovedMigrationRules } from '@gnm/shared';
+import { notifyLocalCompletion } from '../src/services/notificationService';
+import { failOperation, finishOperation, startOperation, updateOperation } from '../src/services/operationService';
 
 function candidateKey(item: any) { return `${item.contactId}:${item.phoneIndex}:${item.originalNumber}:${item.migratedNumber || 'review'}`; }
 function operatorTone(name?: string): Tone { const n = String(name || '').toLowerCase(); return n.includes('qcell') ? 'violet' : n.includes('comium') ? 'blue' : n.includes('africell') ? 'gold' : 'muted'; }
@@ -45,7 +47,7 @@ export default function Preview() {
     setLoading(true);
     Promise.all([getJson<any>(keys.scan, null), getJson<any>(keys.transition, null), getJson<any>(keys.rules, null), getAccessStatus()]).then(([savedScan, transition, rules, accessStatus]) => {
       if (!active) return;
-      const scanIsCurrent = Boolean(savedScan && hasApprovedMigrationRules(rules) && savedScan.rulesVersion === rules.versionNumber);
+      const scanIsCurrent = Boolean(savedScan && hasApprovedMigrationRules(rules) && savedScan.rulesVersion === rules.versionNumber && savedScan.schemaVersion === SCAN_SCHEMA_VERSION);
       setScan(scanIsCurrent ? savedScan : null);
       setAllowReplace(Boolean(transition?.allowReplaceMode));
       const savedMode = scanIsCurrent ? savedScan?.candidates?.[0]?.updateMode : undefined;
@@ -137,16 +139,25 @@ export default function Preview() {
             const operation = mode === 'replace' ? 'replace_update' : 'duplicate_add';
             const sameResumableJob = existingJob?.status === 'running' && existingJob?.operation === operation && selectedItems.every((item) => existingJob.selectedKeys?.includes(candidateKey(item)));
             const authorization = sameResumableJob ? null : await authorizeMigration(selectedItems.length, mode);
-            const onProgress = (progress: any) => setMigrationProgress(progress);
+            await startOperation('migration', mode === 'replace' ? 'Replacing selected contact numbers' : 'Adding new contact numbers', selectedItems.length, '/preview');
+            const onProgress = (progress: any) => { setMigrationProgress(progress); void updateOperation(progress); };
             const shouldPause = () => pauseRequested.current;
             const result = mode === 'replace' ? await applyReplace(selectedItems, onProgress, shouldPause) : await applyDuplicateAdd(selectedItems, onProgress, shouldPause);
             const succeeded = Number((result as any).added || (result as any).replaced || 0);
-            // Contact writes are already complete at this point. A temporary
-            // allowance-sync failure must not misreport the migration as failed.
+            await finishOperation(`${succeeded} contact numbers updated.`);
+            // Successful writes are recorded as a local pending allowance debt
+            // before network settlement, so an interrupted request is retried
+            // before the next free migration.
             if (authorization?.access === 'trial') await settleMigrationAllowance(selectedItems.length, succeeded).catch(() => undefined);
             const failureSummary = ((result as any).failureDetails || []).slice(0, 3).map((item: any) => `${item.contactName}: ${item.reason}`).join(' | ');
+            await notifyLocalCompletion(
+              (result as any).failed ? 'Migration completed with issues' : 'Migration complete',
+              `${succeeded.toLocaleString()} updated · ${Number((result as any).failed || 0).toLocaleString()} failed`,
+              { screen: 'history' },
+            );
             router.replace({ pathname: '/complete', params: { total: String(selectedItems.length), updated: String((result as any).added || (result as any).replaced || 0), copied: String((result as any).copied || 0), skipped: String((result as any).skipped || 0), failed: String((result as any).failed || 0), backupId: String((result as any).backupId || ''), failureSummary } });
           } catch (e: any) {
+            await failOperation(e?.message || 'Migration paused or failed.');
             const paymentNeeded = /premium|payment|trial/i.test(e?.message || '');
             showDialog({ title: paymentNeeded ? 'Full unlock required' : 'Migration paused safely', message: e?.message || 'Could not update contacts. Re-select the same contacts to resume from the last checkpoint.', tone: paymentNeeded ? 'warning' : 'danger', icon: paymentNeeded ? 'shield' : 'warning', actions: paymentNeeded ? [{ text: 'Cancel', variant: 'secondary' }, { text: 'Go to Payment', onPress: () => router.push('/payment') }] : [{ text: 'OK' }] });
           } finally { setBusy(false); setMigrationProgress(null); }
@@ -211,6 +222,11 @@ export default function Preview() {
         data={filtered}
         keyExtractor={(item) => candidateKey(item)}
         showsVerticalScrollIndicator={false}
+        initialNumToRender={12}
+        maxToRenderPerBatch={12}
+        updateCellsBatchingPeriod={40}
+        windowSize={7}
+        removeClippedSubviews={Platform.OS === 'android'}
         contentContainerStyle={{ paddingTop: 8, paddingBottom: 230 + insets.bottom }}
         ListEmptyComponent={<View style={{ width: '100%', maxWidth: r.maxWidth as any, alignSelf: 'center', paddingHorizontal: r.horizontalPadding }}>{loading ? <Card><Text style={styles.body}>Loading scan results...</Text></Card> : !scan ? <EmptyState icon="scan" title="Scan required" text="Scan your contacts first to create a current preview." action={<Button title="Go to Dashboard" onPress={() => router.replace('/dashboard')} />} /> : <EmptyState icon="scan" title="No numbers in this view" text="Try another filter or search, or scan contacts again to refresh the results." action={<Button title="Clear Filters" onPress={() => { setQ(''); setFilter('All'); }} />} />}</View>}
         ListHeaderComponent={all.length ? <View style={{ width: '100%', maxWidth: r.maxWidth as any, alignSelf: 'center', paddingHorizontal: r.horizontalPadding, marginBottom: 8 }}>
@@ -229,9 +245,13 @@ export default function Preview() {
           const tone = operatorTone(item.operatorName);
           const t = getTone(colors, tone);
           const selectable = item.status === 'Ready';
+          const alreadyCurrent = item.status === 'Already Updated' && (
+            item.originalNumber === item.migratedNumber
+            || String(item.originalNumber || '').replace(/\D/g, '').endsWith(String(item.migratedNumber || ''))
+          );
           return (
             <View style={{ width: '100%', maxWidth: r.maxWidth as any, alignSelf: 'center', paddingHorizontal: r.horizontalPadding }}>
-              <TouchableOpacity activeOpacity={0.76} disabled={!selectable || busy} onPress={() => toggleItem(item)} style={{ minHeight: 72, borderBottomWidth: 1, borderBottomColor: colors.line, paddingVertical: 10, paddingHorizontal: 4, opacity: selectable ? 1 : 0.6, backgroundColor: active ? colors.primarySoft : 'transparent' }}> 
+              <TouchableOpacity accessibilityRole="checkbox" accessibilityLabel={`${item.contactName || 'Unnamed contact'}, ${item.originalNumber} to ${item.migratedNumber || 'manual review'}`} accessibilityState={{ checked: active, disabled: !selectable || busy }} activeOpacity={0.76} disabled={!selectable || busy} onPress={() => toggleItem(item)} style={{ minHeight: 76, borderBottomWidth: 1, borderBottomColor: colors.line, paddingVertical: 10, paddingHorizontal: 6, opacity: selectable ? 1 : 0.6, backgroundColor: active ? colors.primarySoft : 'transparent' }}>
                 <View style={[styles.row, { gap: 12 }]}> 
                   <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: t.bg, alignItems: 'center', justifyContent: 'center' }}>
                     <Text style={{ color: t.fg, fontWeight: '900', fontSize: 17 }}>{String(item.contactName || '?').trim()[0]?.toUpperCase() || '?'}</Text>
@@ -241,11 +261,18 @@ export default function Preview() {
                       <Text numberOfLines={1} style={{ color: colors.text, fontWeight: '900', fontSize: 16, flex: 1 }}>{item.contactName || 'Unnamed contact'}</Text>
                       {item.status === 'Ready' ? <OperatorBadge operator={item.operatorName} /> : <Pill text={item.status || 'Review'} tone={statusTone(item.status)} />}
                     </View>
-                    <View style={[styles.row, { gap: 7, marginTop: 5 }]}> 
-                      <Text numberOfLines={1} style={{ color: colors.muted, fontWeight: '700', flexShrink: 1 }}>{item.originalNumber}</Text>
-                      <AppIcon name="right" color={colors.primary} size={15} />
-                      <Text numberOfLines={1} style={{ color: t.fg, fontWeight: '800', flexShrink: 1 }}>{item.migratedNumber || 'Manual review'}</Text>
-                    </View>
+                    {alreadyCurrent ? (
+                      <View style={[styles.row, { gap: 7, marginTop: 5 }]}>
+                        <AppIcon name="check" color={colors.success} size={15} />
+                        <Text numberOfLines={1} style={{ color: colors.success, fontWeight: '800', flexShrink: 1 }}>{item.originalNumber} · current 9-digit format</Text>
+                      </View>
+                    ) : (
+                      <View style={[styles.row, { gap: 7, marginTop: 5 }]}> 
+                        <Text numberOfLines={1} style={{ color: colors.muted, fontWeight: '700', flexShrink: 1 }}>{item.originalNumber}</Text>
+                        <AppIcon name="right" color={colors.primary} size={15} />
+                        <Text numberOfLines={1} style={{ color: t.fg, fontWeight: '800', flexShrink: 1 }}>{item.migratedNumber || 'Manual review'}</Text>
+                      </View>
+                    )}
                   </View>
                   <View style={{ width: 26, height: 26, borderRadius: 13, borderWidth: 2, borderColor: active ? colors.primary : colors.line, backgroundColor: active ? colors.primary : colors.card, alignItems: 'center', justifyContent: 'center' }}>
                     {active ? <AppIcon name="check" color={colors.white} size={15} /> : null}

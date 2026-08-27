@@ -4,11 +4,25 @@ import { query } from '../db/pool';
 import { requireAdmin } from '../middleware/auth';
 import { audit } from '../services/auditService';
 import { env } from '../config/env';
+import { requireDeviceSecret } from '../middleware/deviceSecret';
 
 export const notificationsRouter = Router();
 const tokenSchema = z.object({ deviceId: z.string().min(8).max(200), expoPushToken: z.string().regex(/^(Exponent|Expo)PushToken\[[^\]]+\]$/, 'Invalid Expo push token'), platform: z.enum(['android', 'ios']) });
 const preferenceSchema = z.object({ deviceId: z.string().min(8).max(200), enabled: z.boolean() });
-const notificationSchema = z.object({ title: z.string().trim().min(2).max(80), message: z.string().trim().min(2).max(500), target: z.enum(['all', 'android', 'ios']).default('all'), audience: z.enum(['all', 'trial', 'subscribed']).default('all'), data: z.record(z.unknown()).optional().default({}) });
+// Strips markup and line breaks from admin-authored notification text. Mobile
+// renders this as plain RN <Text> (no HTML interpretation) and the admin
+// portal never uses dangerouslySetInnerHTML, so this is defense in depth
+// rather than a fix for an active injection path - it keeps a raw
+// <script>/<img onerror> paste from becoming exploitable if either surface
+// ever changes, and keeps title/message single-line and readable.
+export const sanitizeNotificationText = (value: string) => value.replace(/<[^>]*>/g, '').replace(/[\r\n\t]+/g, ' ').replace(/ {2,}/g, ' ').trim();
+export const notificationSchema = z.object({
+  title: z.string().trim().min(2).max(80).transform(sanitizeNotificationText).refine((value) => value.length >= 2, 'Title must be at least 2 characters after removing markup'),
+  message: z.string().trim().min(2).max(500).transform(sanitizeNotificationText).refine((value) => value.length >= 2, 'Message must be at least 2 characters after removing markup'),
+  target: z.enum(['all', 'android', 'ios']).default('all'),
+  audience: z.enum(['all', 'trial', 'subscribed']).default('all'),
+  data: z.record(z.unknown()).optional().default({})
+});
 const enabledSchema = z.object({ enabled: z.boolean() });
 
 function expoHeaders() {
@@ -17,7 +31,7 @@ function expoHeaders() {
   return headers;
 }
 
-notificationsRouter.post('/notifications/register-token', async (req, res, next) => {
+notificationsRouter.post('/notifications/register-token', requireDeviceSecret, async (req, res, next) => {
   try {
     const b = tokenSchema.parse(req.body);
     const device = await query('SELECT id,status FROM devices WHERE id=$1', [b.deviceId]);
@@ -30,7 +44,7 @@ notificationsRouter.post('/notifications/register-token', async (req, res, next)
   } catch (e) { next(e); }
 });
 
-notificationsRouter.post('/notifications/preferences', async (req, res, next) => {
+notificationsRouter.post('/notifications/preferences', requireDeviceSecret, async (req, res, next) => {
   try {
     const b = preferenceSchema.parse(req.body);
     const device = await query('SELECT id,status FROM devices WHERE id=$1', [b.deviceId]);

@@ -2,17 +2,12 @@ import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Device from 'expo-device';
 import * as Application from 'expo-application';
+import { randomUUID } from 'expo-crypto';
 
 const KEY_FINGERPRINT = 'gnm_device_fingerprint';
+const KEY_DEVICE_SECRET = 'gnm_device_secret';
 let cachedFingerprint: string | null = null;
-
-function uuidv4(): string {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === 'x' ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
-}
+let cachedDeviceSecret: string | null = null;
 
 /**
  * Returns a stable, privacy-safe device reference used for payment/unlock status.
@@ -27,26 +22,25 @@ export async function getDeviceFingerprint(): Promise<string> {
     return stored;
   }
 
-  let id = uuidv4();
-  if (Platform.OS === 'ios') {
-    try {
-      const Application = await import('expo-application');
-      id = (await Application.getIosIdForVendorAsync()) || id;
-    } catch {
-      // keep generated UUID
-    }
-  } else if (Platform.OS === 'android') {
-    try {
-      const Application = await import('expo-application');
-      id = Application.getAndroidId() || id;
-    } catch {
-      // keep generated UUID
-    }
-  }
+  // App-scoped random identity avoids collecting a platform hardware identifier
+  // and prevents a reinstall from inheriting a server credential it cannot recover.
+  const id = randomUUID();
 
   await AsyncStorage.setItem(KEY_FINGERPRINT, id).catch(() => undefined);
   cachedFingerprint = id;
   return id;
+}
+
+export async function getDeviceSecret(): Promise<string | null> {
+  if (cachedDeviceSecret) return cachedDeviceSecret;
+  cachedDeviceSecret = await AsyncStorage.getItem(KEY_DEVICE_SECRET).catch(() => null);
+  return cachedDeviceSecret;
+}
+
+export async function storeDeviceSecret(deviceSecret: string): Promise<void> {
+  if (!deviceSecret) return;
+  await AsyncStorage.setItem(KEY_DEVICE_SECRET, deviceSecret);
+  cachedDeviceSecret = deviceSecret;
 }
 
 export function getDeviceInfo() {
@@ -56,6 +50,7 @@ export function getDeviceInfo() {
     osName: Device.osName ?? null,
     osVersion: Device.osVersion ?? null,
     platform: Platform.OS,
-    appVersion: Application.nativeApplicationVersion ?? '2.8.9'
+    appVersion: Application.nativeApplicationVersion ?? '1.0.0',
+    buildNumber: Application.nativeBuildVersion ?? null
   };
 }

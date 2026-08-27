@@ -4,6 +4,7 @@ import { paymentIntentSchema, paymentOtpSchema } from '@gnm/shared';
 import { env } from '../config/env';
 import { query, withTransaction } from '../db/pool';
 import { requireAdmin } from '../middleware/auth';
+import { requireDeviceSecret } from '../middleware/deviceSecret';
 import { audit } from '../services/auditService';
 
 export const paymentsRouter = Router();
@@ -58,12 +59,19 @@ async function applyPaymentStatus(reference: string, status: string, externalRef
   return r;
 }
 
-paymentsRouter.post('/payments/create-intent', async (req, res, next) => {
+paymentsRouter.post('/payments/create-intent', requireDeviceSecret, async (req, res, next) => {
   try {
+    if (env.nodeEnv === 'production' && !env.paymentProviderIntegrationReady) {
+      return res.status(503).json({ message: 'Live payments are not available yet. Please try again later or contact OceanBrown support.' });
+    }
     const b = paymentIntentSchema.parse(req.body);
-    const configured = await query("SELECT config_value FROM app_config WHERE config_key='subscription_price' LIMIT 1");
-    const requiredAmount = Number(configured.rows[0]?.config_value ?? 100);
+    const configured = await query("SELECT config_key,config_value FROM app_config WHERE config_key IN ('subscription_price','wave_payment_enabled','aps_payment_enabled')");
+    const paymentConfig = Object.fromEntries(configured.rows.map((row) => [row.config_key, row.config_value]));
+    const providerEnabled = b.provider === 'wave' ? paymentConfig.wave_payment_enabled === true : paymentConfig.aps_payment_enabled === true;
+    if (!providerEnabled) return res.status(403).json({ message: `${b.provider === 'wave' ? 'Wave' : 'APS'} payments are not currently available.` });
+    const requiredAmount = Number(paymentConfig.subscription_price ?? 25);
     const device = await query('SELECT status,access_source FROM devices WHERE id=$1 LIMIT 1', [b.deviceId]);
+    if (!device.rowCount) return res.status(404).json({ message: 'Device not registered' });
     if (device.rows[0]?.status === 'active') return res.status(409).json({ message: 'This device already has full access. No payment is required.' });
     if (b.amount !== requiredAmount || b.currency !== 'GMD') return res.status(400).json({ message: `Payment amount must be D${requiredAmount} GMD` });
     const existing = await query(
@@ -84,17 +92,18 @@ paymentsRouter.post('/payments/create-intent', async (req, res, next) => {
       [b.provider, ref, b.deviceId, b.featureKey, b.amount, b.currency,
        JSON.stringify({ ...(b.metadata || {}), customerPhone: b.customerPhone || null }), otpHashValue, otpExpiresAt, b.idempotencyKey]
     );
-    await markDevicePaymentState(b.deviceId, 'pending_payment');
+    // create-intent requires an existing registered device; unlike webhook reconciliation, it must never create one.
+    await query("UPDATE devices SET status=CASE WHEN status='blocked' THEN status ELSE 'pending_payment' END,updated_at=NOW() WHERE id=$1", [b.deviceId]);
     const payment = r.rows[0];
     res.status(201).json({ data: { reference: payment.reference, provider: payment.provider, amount: payment.amount, currency: payment.currency, status: payment.status, testOtp } });
   } catch (e) { next(e); }
 });
 
-paymentsRouter.post('/payments/verify-otp', async (req, res, next) => {
+paymentsRouter.post('/payments/verify-otp', requireDeviceSecret, async (req, res, next) => {
   try {
     if (!env.paymentTestMode) return res.status(404).json({ message: 'Test OTP verification is disabled' });
     const b = paymentOtpSchema.parse(req.body);
-    const r = await query('SELECT * FROM payments WHERE reference=$1', [b.reference]);
+    const r = await query('SELECT * FROM payments WHERE reference=$1 AND device_id=$2', [b.reference, b.deviceId]);
     const payment = r.rows[0];
     if (!payment) return res.status(404).json({ message: 'Payment not found' });
     if (payment.status === 'success') return res.json({ data: { reference: payment.reference, status: payment.status } });
@@ -111,9 +120,10 @@ paymentsRouter.post('/payments/verify-otp', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-paymentsRouter.get('/payments/:reference/status', async (req, res, next) => {
+paymentsRouter.get('/payments/:reference/status', requireDeviceSecret, async (req, res, next) => {
   try {
-    const r = await query('SELECT reference, status, feature_key, checkout_url, amount, currency FROM payments WHERE reference=$1', [req.params.reference]);
+    const deviceId = String(req.query.deviceId || '');
+    const r = await query('SELECT reference, status, feature_key, checkout_url, amount, currency FROM payments WHERE reference=$1 AND device_id=$2', [req.params.reference, deviceId]);
     if (!r.rowCount) return res.status(404).json({ message: 'Payment not found' });
     res.json({ data: r.rows[0] });
   } catch (e) { next(e); }
@@ -146,6 +156,7 @@ for (const provider of ['wave', 'aps'] as const) {
         );
         if (!updated.rowCount) throw Object.assign(new Error('Payment not found'), { status: 404 });
         if (status === 'success') {
+          // A verified completed-payment webhook may create the device so provider reconciliation cannot lose paid access.
           await client.query(
             `INSERT INTO devices(id,status,subscribed_at) VALUES($1,'active',NOW())
              ON CONFLICT(id) DO UPDATE SET status=CASE WHEN devices.status='blocked' THEN devices.status ELSE 'active' END,

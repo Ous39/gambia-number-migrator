@@ -57,8 +57,8 @@ export default function Onboarding() {
 
   return (
     <Screen>
-      <TopNav title="NumMigrate GM" right={<TouchableOpacity onPress={() => finish(false)}><Text style={{ color: colors.softText, fontWeight: '800' }}>Skip</Text></TouchableOpacity>} />
-      <View style={{ minHeight: r.compact ? 500 : 610, justifyContent: 'center' }}>
+      <TopNav title="Gambia Number Migrator" compact right={<TouchableOpacity accessibilityRole="button" accessibilityLabel="Skip introduction" onPress={() => finish(false)} style={{ minHeight: 44, justifyContent: 'center', paddingHorizontal: 8 }}><Text style={{ color: colors.primary, fontWeight: '900' }}>Skip</Text></TouchableOpacity>} />
+      <View style={{ minHeight: r.compact ? 450 : 560, justifyContent: 'center' }}>
         <View style={{ alignItems: 'center' }}>
           <View style={{ width: r.compact ? 138 : 174, height: r.compact ? 138 : 174, borderRadius: r.compact ? 69 : 87, backgroundColor: tone.bg, borderWidth: 1, borderColor: tone.border, alignItems: 'center', justifyContent: 'center' }}>
             <View style={{ width: r.compact ? 92 : 116, height: r.compact ? 92 : 116, borderRadius: 28, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center', shadowColor: colors.shadow, shadowOpacity: 0.08, shadowRadius: 18, shadowOffset: { width: 0, height: 10 }, elevation: 3 }}>

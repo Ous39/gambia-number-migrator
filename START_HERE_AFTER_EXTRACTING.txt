@@ -1,0 +1,17 @@
+GNM CLEAN START - WINDOWS
+=========================
+
+IMPORTANT: Extract this ZIP into a brand-new folder. Do not extract it over an old GNM folder.
+
+1. Open Docker Desktop and wait until it is running.
+2. Double-click RUN_THIS_FIRST.bat. It performs the normal dependency installation.
+3. Double-click START_ALL.bat.
+4. Use CLEAN_INSTALL_WINDOWS.bat only if Windows reports EBUSY or a stale/missing Expo dependency.
+5. Keep the phone and PC on the same Wi-Fi/hotspot.
+6. Use the QR code from the GNM Mobile window.
+
+START_MOBILE.bat uses Expo LAN mode with the detected PC address. Keep the phone and PC on the same Wi-Fi or hotspot.
+START_MOBILE_TUNNEL.bat is optional and depends on ngrok/internet availability.
+
+This release does not declare or import expo-secure-store. If Expo reports that package,
+you are running an old mixed folder instead of this clean extracted release.

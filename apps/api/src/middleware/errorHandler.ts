@@ -14,7 +14,9 @@ export function errorHandler(err: any, _req: Request, res: Response, _next: Next
   }
   if (isDbUnavailable(err)) {
     return res.status(503).json({
-      message: 'Database is not reachable on port 5434. Open Docker Desktop, wait until PostgreSQL is ready, then run START_ALL.bat again.',
+      message: process.env.NODE_ENV === 'production'
+        ? 'The service database is temporarily unavailable. Please try again shortly.'
+        : 'Database is not reachable on port 5434. Open Docker Desktop, wait until PostgreSQL is ready, then run START_ALL.bat again.',
       code: 'DATABASE_UNAVAILABLE'
     });
   }

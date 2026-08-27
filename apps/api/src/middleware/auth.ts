@@ -12,7 +12,7 @@ declare global {
 }
 
 export function signAdminToken(payload: AdminJwtPayload) {
-  return jwt.sign(payload, env.jwtSecret, { expiresIn: '12h' });
+  return jwt.sign(payload, env.jwtSecret, { expiresIn: '8h', algorithm: 'HS256', issuer: 'gnm-api', audience: 'gnm-admin' });
 }
 
 export async function requireAdmin(req: Request, res: Response, next: NextFunction) {
@@ -20,7 +20,7 @@ export async function requireAdmin(req: Request, res: Response, next: NextFuncti
   const token = header?.startsWith('Bearer ') ? header.slice(7) : undefined;
   if (!token) return res.status(401).json({ message: 'Authentication required' });
   try {
-    const decoded = jwt.verify(token, env.jwtSecret) as AdminJwtPayload;
+    const decoded = jwt.verify(token, env.jwtSecret, { algorithms: ['HS256'], issuer: 'gnm-api', audience: 'gnm-admin' }) as AdminJwtPayload;
     const current = await query('SELECT id,username,role,status FROM admins WHERE id=$1 LIMIT 1', [decoded.adminId]);
     if (!current.rowCount || current.rows[0].status !== 'active') return res.status(401).json({ message: 'Account is inactive or no longer exists' });
     req.admin = { adminId: current.rows[0].id, username: current.rows[0].username, role: current.rows[0].role };
@@ -40,7 +40,8 @@ export function requireRoles(...roles: string[]) {
 const roleAreas: Record<string, string[]> = {
   owner: ['*'], admin: ['*'],
   operations: ['/dashboard','/migration-rules','/transition-settings','/notifications','/operators','/app-config'],
-  finance: ['/dashboard','/payments'], support: ['/dashboard','/support-devices','/notifications'], viewer: ['*'],
+  finance: ['/dashboard','/payments'], support: ['/dashboard','/devices','/notifications'],
+  communications: ['/dashboard','/website-content','/inquiries','/notifications','/uploads'], viewer: ['*'],
 };
 export function requireAdminAreaAccess(req: Request,res: Response,next: NextFunction){
   const role=req.admin?.role||''; const allowed=roleAreas[role]||[];

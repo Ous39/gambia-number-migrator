@@ -14,7 +14,7 @@ export default function BackupComplete() {
   const size = r.compact ? 70 : 84;
 
   return (
-    <Screen>
+    <Screen scroll={false}>
       <BackHeader title="Backup Complete" subtitle="Your contacts were saved locally on this device." compact />
       <View style={{ alignItems: 'center', paddingTop: r.compact ? 10 : 16 }}>
         <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: colors.successSoft, borderColor: colors.success, borderWidth: 1, alignItems: 'center', justifyContent: 'center' }}>
@@ -31,7 +31,8 @@ export default function BackupComplete() {
         {backupId ? <SummaryRow label="Backup ID" value={`${backupId.slice(0, 18)}…`} color={colors.muted} /> : null}
       </Card>
 
-      <Button title="Preview Changes" icon="preview" onPress={() => router.replace({ pathname: '/preview', params: { filter: 'Needs Update' } })} style={{ marginTop: 14 }} />
+      <View style={{ flex: 1, minHeight: 10 }} />
+      <Button title="Preview Changes" icon="preview" onPress={() => router.replace({ pathname: '/preview', params: { filter: 'Needs Update' } })} style={{ marginTop: 10 }} />
       <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
         <Button title="Dashboard" variant="secondary" icon="home" onPress={() => router.replace('/dashboard')} style={{ flex: 1 }} />
         <Button title="Backups" variant="secondary" icon="backup" onPress={() => router.replace('/backup')} style={{ flex: 1 }} />

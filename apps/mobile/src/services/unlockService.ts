@@ -67,6 +67,13 @@ export async function markFeatureUnlocked(featureKey: PremiumFeatureKey, referen
 export async function authorizeMigration(count: number, mode: 'duplicate' | 'replace') {
   const deviceId = await getDeviceFingerprint();
   await registerDevice(deviceId, getDeviceInfo());
+  // Reconcile a successful local write whose allowance update was interrupted
+  // before permitting another free migration.
+  const pendingUsage = Math.max(0, Math.floor(await getJson<number>(keys.pendingTrialUsage, 0)));
+  if (pendingUsage) {
+    await consumeTrialAllowance(deviceId, pendingUsage);
+    await setJson(keys.pendingTrialUsage, 0);
+  }
   const status = await getDeviceStatus(deviceId);
   if (status?.status === 'blocked') throw new Error('This device is blocked. Contact support for assistance.');
   if (status?.status === 'active') {
@@ -90,7 +97,11 @@ export async function settleMigrationAllowance(reserved: number, succeeded: numb
   const completed = Math.max(0, Math.floor(succeeded));
   if (!completed) return;
   const deviceId = await getDeviceFingerprint();
-  await consumeTrialAllowance(deviceId, completed);
+  const previousPending = Math.max(0, Math.floor(await getJson<number>(keys.pendingTrialUsage, 0)));
+  const total = previousPending + completed;
+  await setJson(keys.pendingTrialUsage, total);
+  await consumeTrialAllowance(deviceId, total);
+  await setJson(keys.pendingTrialUsage, 0);
   await getAccessStatus();
 }
 

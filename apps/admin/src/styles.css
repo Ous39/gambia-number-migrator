@@ -104,3 +104,36 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,te
   .menuBackdrop{display:block;position:fixed;inset:0;z-index:85;border:0;background:rgba(2,12,25,.62);backdrop-filter:blur(3px)}.main{padding-top:24px}
 }
 @media(max-width:520px){.navbarIdentity span{max-width:135px}.adminNavbar{gap:8px}.navbarActions{gap:6px}.main{padding-left:14px;padding-right:14px}}
+
+/* v2.8.13 global-standard usability and responsive hardening */
+html{scrollbar-gutter:stable}body{line-height:1.5;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+button,.btn,a,input,select,textarea,summary{-webkit-tap-highlight-color:transparent}
+button:disabled,.btn:disabled{cursor:not-allowed;filter:saturate(.55)}
+.logoMark{width:50px;flex:0 0 50px;font-size:13px}.logo span{min-width:0}.logo span>small{white-space:nowrap}
+.adminNavbar{box-shadow:0 8px 28px rgba(7,26,51,.055)}
+.main{min-height:calc(100vh - 76px)}
+.notice[role=status]{min-height:50px;align-items:flex-start}
+.input::placeholder,textarea::placeholder{color:var(--soft);opacity:1}
+select{appearance:auto}.formGrid label:focus-within{color:var(--primary)}
+.btn{min-height:48px}.actionRow .btn,.actionStack .btn,.btn.compact{min-height:42px}
+.tableWrap{width:100%;overscroll-behavior-inline:contain;scrollbar-color:var(--border) transparent}
+th{position:sticky;top:0;z-index:2;white-space:nowrap}td{line-height:1.5}
+.dataCard .tableWrap:focus-within{box-shadow:inset 0 0 0 2px rgba(105,160,255,.25)}
+.statusBadge,.badge{line-height:1.25}.emptyState{text-align:center}.loadingState{min-height:320px;height:auto}
+.modalBackdrop{overflow-y:auto}.modalCard{max-height:calc(100vh - 40px);overflow:auto}
+.mobileMenu,.mobileClose,.navbarButton{min-width:44px;min-height:44px}
+@media(max-width:920px){
+  .main{min-height:calc(100vh - 68px);padding-bottom:42px}.sidebar{padding-bottom:max(20px,env(safe-area-inset-bottom))}
+  .sidebar .nav a{min-height:50px}.adminNavbar{padding-left:max(14px,env(safe-area-inset-left));padding-right:max(14px,env(safe-area-inset-right))}
+  .tableWrap{margin-left:-20px;margin-right:-20px;width:calc(100% + 40px);padding:0 20px}
+  .dataCard .tableWrap{margin:0;width:100%;padding:0}
+}
+@media(max-width:620px){
+  .main{padding-left:14px;padding-right:14px}.card{border-radius:20px;padding:18px}.dataCard{padding:0}
+  .pageTitle h1,.topbar h1,.main>h1{font-size:28px;letter-spacing:-.8px}.pageTitle p,.topbar p{font-size:14px}
+  .topbar{gap:12px;margin-bottom:19px}.formGrid{gap:15px}.formActions{display:grid}.formActions .btn{width:100%}
+  .toolbar{display:grid}.toolbar .btn{width:100%}.modalCard{padding:21px;border-radius:21px}
+  .loginBox{width:calc(100% - 28px);padding:24px}.navbarIdentity span{max-width:118px}.navbarIdentity small{display:none}
+  .summaryCard{min-height:86px}.summaryCard b{font-size:23px}
+}
+@media(max-width:380px){.navbarIdentity span{display:none}.adminNavbar{justify-content:flex-start}.navbarActions{margin-left:auto}.main{padding-left:12px;padding-right:12px}}

@@ -4,7 +4,7 @@ export const API_BASE_URL = 'http://localhost:8089/api';
 export const ADMIN_PORT = 5173;
 export const API_PORT = 8089;
 export const POSTGRES_PORT = 5434;
-export const APP_NAME = 'Gambia Number Migrator';
+export const APP_NAME = 'GNM';
 
 export const DEFAULT_RULES_PAYLOAD: PublishedRulesPayload = {
   versionNumber: 0,

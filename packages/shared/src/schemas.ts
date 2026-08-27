@@ -46,10 +46,10 @@ export const transitionSettingsSchema = z.object({
 
 export const paymentIntentSchema = z.object({
   provider: z.enum(['wave', 'aps']),
-  deviceId: z.string().min(3),
+  deviceId: z.string().min(8).max(200),
   featureKey: z.literal('bulk_unlock'),
   amount: z.coerce.number().positive(),
-  currency: z.string().default('GMD'),
+  currency: z.literal('GMD').default('GMD'),
   customerPhone: z.string().regex(/^(\d{7}|\d{9})$/).optional(),
   idempotencyKey: z.string().regex(/^[A-Za-z0-9:_-]{16,100}$/),
   metadata: z.record(z.unknown()).optional().default({})
@@ -57,5 +57,6 @@ export const paymentIntentSchema = z.object({
 
 export const paymentOtpSchema = z.object({
   reference: z.string().min(8).max(100),
-  otp: z.string().regex(/^\d{4}$/)
+  otp: z.string().regex(/^\d{4}$/),
+  deviceId: z.string().min(8).max(200)
 });

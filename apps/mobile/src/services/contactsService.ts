@@ -29,6 +29,12 @@ function migrationKey(item: Pick<MigrationCandidate, 'contactId' | 'phoneIndex' 
   return `${item.contactId}:${item.phoneIndex}:${item.originalNumber}:${item.migratedNumber || 'review'}`;
 }
 
+// Bump whenever a saved scan's shape changes in a way that affects list-item
+// identity (e.g. the phoneIndex field). A cached scan from before the bump is
+// treated as stale and forces a rescan, instead of silently reusing candidates
+// that are missing the new field and colliding in FlatList keys.
+export const SCAN_SCHEMA_VERSION = 2;
+
 async function updateStoredScanAfterMigration(selected: MigrationCandidate[], successKeys: Set<string>, nextStatus: MigrationCandidate['status'], reason: string) {
   if (!successKeys.size) return;
   const scan = await getJson<any>(keys.scan, null).catch(() => null);
@@ -60,6 +66,21 @@ async function updateStoredScanAfterMigration(selected: MigrationCandidate[], su
     summary,
     lastUpdatedAt: new Date().toISOString(),
   }).catch(() => undefined);
+}
+
+// Migration, cleanup, backup and restore all mutate or read the same on-device
+// contacts store. Running two of them at once (e.g. a restore started while a
+// migration is mid-flight after leaving and reopening the app) can race and
+// leave contacts in an inconsistent state, so every entry point checks first.
+async function assertNoConflictingOperation(kind: 'migration' | 'cleanup' | 'backup' | 'restore') {
+  const migrationJob = await getJson<any>(keys.migrationJob, null).catch(() => null);
+  if (kind !== 'migration' && migrationJob?.status === 'running') {
+    throw new Error('A migration is still in progress on this device. Open Preview to finish or resume it before starting this action.');
+  }
+  const operationJob = await getJson<any>(keys.operationJob, null).catch(() => null);
+  if (operationJob?.status === 'running' && operationJob.kind !== kind) {
+    throw new Error(`${operationJob.title || 'Another operation'} is still in progress. Wait for it to finish before starting this action.`);
+  }
 }
 
 export async function ensureContactPermission() {
@@ -127,7 +148,8 @@ export async function scanContacts(
     },
     date: new Date().toISOString(),
     durationMs: Date.now() - started,
-    rulesVersion: payload.versionNumber
+    rulesVersion: payload.versionNumber,
+    schemaVersion: SCAN_SCHEMA_VERSION
   };
   await setJson(keys.scan, result);
   await appendHistory({
@@ -320,6 +342,7 @@ async function updateAndVerifyPhones(contact: any, expected: ExpoPhone[]) {
 }
 
 export async function createFullContactsBackup(onProgress?: (progress: ScanProgress) => void) {
+  await assertNoConflictingOperation('backup');
   const contacts = await loadDeviceContacts(onProgress);
   if (!contacts.length) throw new Error('No contacts with phone numbers were found, so no backup was created.');
   const items = contacts.map((contact) => ({
@@ -358,16 +381,25 @@ async function checkpointJob(job: any, force = false) {
   if (force || job.completedKeys.length % 100 === 0) await setJson(keys.migrationJob, { ...job, updatedAt: new Date().toISOString() });
 }
 
-function markJobComplete(job: any, completed: Set<string>, itemKey: string, succeeded: number, skipped: number, failed: number) {
-  const wasSuccessful = succeeded > Number(job.succeeded || 0);
+function markJobComplete(job: any, completed: Set<string>, itemKey: string, succeeded: number, skipped: number, failed: number, successful = false) {
   completed.add(itemKey);
   if (!Array.isArray(job.completedKeys)) job.completedKeys = [];
   job.completedKeys.push(itemKey);
   if (!Array.isArray(job.successKeys)) job.successKeys = [];
-  if (wasSuccessful && !job.successKeys.includes(itemKey)) job.successKeys.push(itemKey);
+  if (successful && !job.successKeys.includes(itemKey)) job.successKeys.push(itemKey);
   job.succeeded = succeeded;
   job.skipped = skipped;
   job.failed = failed;
+}
+
+function groupByContact<T extends { contactId: string }>(items: T[]) {
+  const groups = new Map<string, T[]>();
+  items.forEach((item) => groups.set(item.contactId, [...(groups.get(item.contactId) || []), item]));
+  return [...groups.values()];
+}
+
+async function yieldToInterface() {
+  await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
 function shouldVerifyWrite(processed: number) {
@@ -382,6 +414,9 @@ function emitMigrationProgress(job: any, total: number, onProgress?: (progress: 
 }
 
 export async function applyDuplicateAdd(selected: MigrationCandidate[], onProgress?: (progress: MigrationProgress) => void, shouldPause?: () => boolean) {
+  await assertNoConflictingOperation('migration');
+  const permitted = await ensureContactPermission();
+  if (!permitted) throw new Error('Contacts permission is required to migrate numbers. Contacts stay on your device and are not uploaded.');
   await validateMigrationSelection(selected);
   const job = await loadMigrationJob('duplicate_add', selected);
   const backup = job.backupId ? { id: job.backupId } : await createOldMigrationBackup('duplicate_add', selected);
@@ -394,39 +429,54 @@ export async function applyDuplicateAdd(selected: MigrationCandidate[], onProgre
   const successKeys = new Set<string>(job.successKeys || []);
   const completed = new Set<string>(job.completedKeys || []);
 
-  for (const item of selected) {
+  for (const group of groupByContact(selected)) {
     if (shouldPause?.()) { await checkpointJob(job, true); throw new Error('Migration paused safely. Re-select the same contacts to resume from this checkpoint.'); }
-    const itemKey = migrationKey(item);
-    if (completed.has(itemKey)) continue;
-    if (!item.migratedNumber || item.status === 'Manual Review' || item.status === 'Unsafe') {
+    const pending = group.filter((item) => !completed.has(migrationKey(item)));
+    if (!pending.length) continue;
+    const valid = pending.filter((item) => item.migratedNumber && item.status !== 'Manual Review' && item.status !== 'Unsafe');
+    const invalid = pending.filter((item) => !valid.includes(item));
+    for (const item of invalid) {
       skipped++;
-    } else {
-      try {
-        const { contact, phoneNumbers } = await readContactPhones(item.contactId);
-        const oldStillExists = phoneNumbers.some((p, index) => isSelectedOldPhone(p, item, index));
-        const newAlreadyExists = phoneNumbers.some((p) => sameNormalizedPhone(phoneText(p), item.migratedNumber!));
-
-        if (!oldStillExists || newAlreadyExists) skipped++;
-        else {
-          const migratedDisplay = formatMigratedLikeOriginal(item.originalNumber, item.migratedNumber);
-          phoneNumbers.push({ label: item.phoneLabel || 'mobile', number: migratedDisplay });
-          const writeResult = await writeContactPhones(contact.id, phoneNumbers, item.contactName, true, backup.id);
-          if (shouldVerifyWrite(job.completedKeys.length)) {
-            const verified = await readContactPhones(writeResult.contactId);
-            if (!verified.phoneNumbers.some((p) => sameNormalizedPhone(phoneText(p), item.migratedNumber!)) || !verified.phoneNumbers.some((p) => sameNormalizedPhone(phoneText(p), item.originalNumber))) throw new Error('Contact update could not be verified.');
-          }
-          added++;
-          if (writeResult.copied) job.copied = Number(job.copied || 0) + 1;
-          successKeys.add(itemKey);
+      markJobComplete(job, completed, migrationKey(item), added, skipped, failed);
+    }
+    if (valid.length) try {
+      const { contact, phoneNumbers } = await readContactPhones(valid[0].contactId);
+      const next = [...phoneNumbers];
+      const planned: MigrationCandidate[] = [];
+      for (const item of valid) {
+        const oldStillExists = next.some((p, index) => isSelectedOldPhone(p, item, index));
+        const newAlreadyExists = next.some((p) => sameNormalizedPhone(phoneText(p), item.migratedNumber!));
+        if (!oldStillExists || newAlreadyExists) {
+          skipped++;
+          markJobComplete(job, completed, migrationKey(item), added, skipped, failed);
+        } else {
+          next.push({ label: item.phoneLabel || 'mobile', number: formatMigratedLikeOriginal(item.originalNumber, item.migratedNumber!) });
+          planned.push(item);
         }
-      } catch (error: any) {
+      }
+      if (planned.length) {
+        const writeResult = await writeContactPhones(contact.id, next, planned[0].contactName, true, backup.id);
+        if (shouldVerifyWrite(job.completedKeys.length)) {
+          const verified = await readContactPhones(writeResult.contactId);
+          if (planned.some((item) => !verified.phoneNumbers.some((p) => sameNormalizedPhone(phoneText(p), item.migratedNumber!)))) throw new Error('Contact update could not be verified.');
+        }
+        if (writeResult.copied) job.copied = Number(job.copied || 0) + 1;
+        for (const item of planned) {
+          added++;
+          const itemKey = migrationKey(item);
+          successKeys.add(itemKey);
+          markJobComplete(job, completed, itemKey, added, skipped, failed, true);
+        }
+      }
+    } catch (error: any) {
+      for (const item of valid.filter((candidate) => !completed.has(migrationKey(candidate)))) {
         failed++;
         failureDetails.push({ contactName: item.contactName || 'Unnamed contact', number: item.originalNumber, reason: error?.message || 'The contacts provider rejected the update.' });
+        markJobComplete(job, completed, migrationKey(item), added, skipped, failed);
       }
     }
-    markJobComplete(job, completed, itemKey, added, skipped, failed);
     await checkpointJob(job); emitMigrationProgress(job, selected.length, onProgress);
-    if (job.completedKeys.length % 50 === 0) await new Promise((resolve) => setTimeout(resolve, 0));
+    await yieldToInterface();
   }
 
   await updateStoredScanAfterMigration(selected, successKeys, 'Duplicate Pair Found', 'New 9-digit number was added during the latest migration.');
@@ -446,6 +496,9 @@ export async function applyDuplicateAdd(selected: MigrationCandidate[], onProgre
 }
 
 export async function applyReplace(selected: MigrationCandidate[], onProgress?: (progress: MigrationProgress) => void, shouldPause?: () => boolean) {
+  await assertNoConflictingOperation('migration');
+  const permitted = await ensureContactPermission();
+  if (!permitted) throw new Error('Contacts permission is required to migrate numbers. Contacts stay on your device and are not uploaded.');
   await validateMigrationSelection(selected);
   const transition = await getJson<any>(keys.transition, null);
   if (!transition?.allowReplaceMode) throw new Error('Replace mode is disabled by the administrator. Use Add & Keep Old instead.');
@@ -459,49 +512,55 @@ export async function applyReplace(selected: MigrationCandidate[], onProgress?: 
   const successKeys = new Set<string>(job.successKeys || []);
   const completed = new Set<string>(job.completedKeys || []);
 
-  for (const item of selected) {
+  for (const group of groupByContact(selected)) {
     if (shouldPause?.()) { await checkpointJob(job, true); throw new Error('Migration paused safely. Re-select the same contacts to resume from this checkpoint.'); }
-    const itemKey = migrationKey(item);
-    if (completed.has(itemKey)) continue;
-    if (!item.migratedNumber || item.status === 'Manual Review' || item.status === 'Unsafe') {
+    const pending = group.filter((item) => !completed.has(migrationKey(item)));
+    if (!pending.length) continue;
+    const valid = pending.filter((item) => item.migratedNumber && item.status !== 'Manual Review' && item.status !== 'Unsafe');
+    for (const item of pending.filter((item) => !valid.includes(item))) {
       skipped++;
-      markJobComplete(job, completed, itemKey, replaced, skipped, failed);
-      await checkpointJob(job); emitMigrationProgress(job, selected.length, onProgress);
-      continue;
+      markJobComplete(job, completed, migrationKey(item), replaced, skipped, failed);
     }
-    try {
-      const { contact, phoneNumbers } = await readContactPhones(item.contactId);
-      const newAlreadyExists = phoneNumbers.some((p) => sameNormalizedPhone(phoneText(p), item.migratedNumber!));
-      const oldCountBefore = phoneNumbers.filter((p) => sameNormalizedPhone(phoneText(p), item.originalNumber)).length;
-      const oldIndex = phoneNumbers.findIndex((p, index) => isSelectedOldPhone(p, item, index));
-
-      if (oldIndex < 0) {
-        skipped++;
-        markJobComplete(job, completed, itemKey, replaced, skipped, failed);
-        await checkpointJob(job); emitMigrationProgress(job, selected.length, onProgress);
-        continue;
+    if (valid.length) try {
+      const { contact, phoneNumbers } = await readContactPhones(valid[0].contactId);
+      let next = [...phoneNumbers];
+      const planned: MigrationCandidate[] = [];
+      for (const item of valid) {
+        const oldIndex = next.findIndex((p, index) => isSelectedOldPhone(p, item, index));
+        if (oldIndex < 0) {
+          skipped++;
+          markJobComplete(job, completed, migrationKey(item), replaced, skipped, failed);
+          continue;
+        }
+        const newAlreadyExists = next.some((p) => sameNormalizedPhone(phoneText(p), item.migratedNumber!));
+        next = newAlreadyExists
+          ? next.filter((_p, index) => index !== oldIndex)
+          : next.map((p, index) => (index === oldIndex ? { ...p, number: formatMigratedLikeOriginal(phoneText(p), item.migratedNumber!) } : p));
+        planned.push(item);
       }
-
-      const next = newAlreadyExists
-        ? phoneNumbers.filter((_p, index) => index !== oldIndex)
-        : phoneNumbers.map((p, index) => (index === oldIndex ? { ...p, number: formatMigratedLikeOriginal(phoneText(p), item.migratedNumber!) } : p));
-
-      const writeResult = await writeContactPhones(contact.id, next, item.contactName, true, backup.id);
-      if (shouldVerifyWrite(job.completedKeys.length)) {
-        const verified = await readContactPhones(writeResult.contactId);
-        const oldCountAfter = verified.phoneNumbers.filter((p) => sameNormalizedPhone(phoneText(p), item.originalNumber)).length;
-        if (!verified.phoneNumbers.some((p) => sameNormalizedPhone(phoneText(p), item.migratedNumber!)) || (!writeResult.copied && oldCountAfter >= oldCountBefore)) throw new Error('Contact replacement could not be verified.');
+      if (planned.length) {
+        const writeResult = await writeContactPhones(contact.id, next, planned[0].contactName, true, backup.id);
+        if (shouldVerifyWrite(job.completedKeys.length)) {
+          const verified = await readContactPhones(writeResult.contactId);
+          if (planned.some((item) => !verified.phoneNumbers.some((p) => sameNormalizedPhone(phoneText(p), item.migratedNumber!)))) throw new Error('Contact replacement could not be verified.');
+        }
+        if (writeResult.copied) job.copied = Number(job.copied || 0) + 1;
+        for (const item of planned) {
+          replaced++;
+          const itemKey = migrationKey(item);
+          successKeys.add(itemKey);
+          markJobComplete(job, completed, itemKey, replaced, skipped, failed, true);
+        }
       }
-      replaced++;
-      if (writeResult.copied) job.copied = Number(job.copied || 0) + 1;
-      successKeys.add(itemKey);
     } catch (error: any) {
-      failed++;
-      failureDetails.push({ contactName: item.contactName || 'Unnamed contact', number: item.originalNumber, reason: error?.message || 'The contacts provider rejected the replacement.' });
+      for (const item of valid.filter((candidate) => !completed.has(migrationKey(candidate)))) {
+        failed++;
+        failureDetails.push({ contactName: item.contactName || 'Unnamed contact', number: item.originalNumber, reason: error?.message || 'The contacts provider rejected the replacement.' });
+        markJobComplete(job, completed, migrationKey(item), replaced, skipped, failed);
+      }
     }
-    markJobComplete(job, completed, itemKey, replaced, skipped, failed);
     await checkpointJob(job); emitMigrationProgress(job, selected.length, onProgress);
-    if (job.completedKeys.length % 50 === 0) await new Promise((resolve) => setTimeout(resolve, 0));
+    await yieldToInterface();
   }
 
   await updateStoredScanAfterMigration(selected, successKeys, 'Already Updated', 'Old 7-digit number was replaced with the new 9-digit number during the latest migration.');
@@ -520,47 +579,49 @@ export async function applyReplace(selected: MigrationCandidate[], onProgress?: 
   return { replaced, copied: Number(job.copied || 0), skipped, failed, backupId: backup.id, failureDetails };
 }
 
-export async function removeOldDuplicates(selected: CleanupCandidate[]) {
+export async function removeOldDuplicates(selected: CleanupCandidate[], onProgress?: (progress: MigrationProgress) => void) {
   if (!selected.length) throw new Error('Select at least one verified duplicate before continuing.');
+  await assertNoConflictingOperation('cleanup');
+  const permitted = await ensureContactPermission();
+  if (!permitted) throw new Error('Contacts permission is required to clean up numbers. Contacts stay on your device and are not uploaded.');
   const rules = await currentApprovedRules();
   for (const item of selected) if (item.status !== 'Safe' || !verifyMigratedPair(item.oldNumber, item.newNumber, rules).matched) throw new Error(`Cleanup verification failed for ${item.contactName || item.oldNumber}. Scan again.`);
   const backup = await createOldMigrationBackup('duplicate_cleanup', selected);
   let removed = 0;
   let skipped = 0;
   let failed = 0;
+  const removedKeys = new Set<string>();
 
-  for (const item of selected) {
-    if (item.status !== 'Safe') {
-      skipped++;
-      continue;
-    }
+  let processed = 0;
+  for (const group of groupByContact(selected)) {
+    const skippedBefore = skipped;
     try {
-      const verification = verifyMigratedPair(item.oldNumber, item.newNumber, rules);
-      if (!verification.matched) {
-        skipped++;
-        continue;
+      const { contact, phoneNumbers } = await readContactPhones(group[0].contactId);
+      let next = [...phoneNumbers];
+      const planned: CleanupCandidate[] = [];
+      for (const item of group) {
+        const hasNew = next.some((p) => sameNormalizedPhone(phoneText(p), item.newNumber));
+        const hasOld = next.some((p) => sameNormalizedPhone(phoneText(p), item.oldNumber));
+        if (!hasNew || !hasOld) skipped++;
+        else {
+          next = next.filter((p) => !sameNormalizedPhone(phoneText(p), item.oldNumber));
+          planned.push(item);
+        }
       }
-
-      const { contact, phoneNumbers } = await readContactPhones(item.contactId);
-      const hasNew = phoneNumbers.some((p) => sameNormalizedPhone(phoneText(p), item.newNumber));
-      const oldIndexes = phoneNumbers
-        .map((p, index) => ({ index, matches: sameNormalizedPhone(phoneText(p), item.oldNumber) }))
-        .filter((p) => p.matches)
-        .map((p) => p.index);
-
-      if (!hasNew || oldIndexes.length === 0) {
-        skipped++;
-        continue;
+      if (planned.length) {
+        await writeContactPhones(contact.id, next);
+        const verified = await readContactPhones(contact.id);
+        if (planned.some((item) => !verified.phoneNumbers.some((p) => sameNormalizedPhone(phoneText(p), item.newNumber)) || verified.phoneNumbers.some((p) => sameNormalizedPhone(phoneText(p), item.oldNumber)))) throw new Error('Duplicate cleanup could not be verified.');
+        removed += planned.length;
+        planned.forEach((item) => removedKeys.add(`${item.contactId}:${item.oldNumber}:${item.newNumber}`));
       }
-
-      const next = phoneNumbers.filter((_p, index) => !oldIndexes.includes(index));
-      await writeContactPhones(contact.id, next);
-      const verified = await readContactPhones(item.contactId);
-      if (!verified.phoneNumbers.some((p) => sameNormalizedPhone(phoneText(p), item.newNumber)) || verified.phoneNumbers.some((p) => sameNormalizedPhone(phoneText(p), item.oldNumber))) throw new Error('Duplicate cleanup could not be verified.');
-      removed++;
     } catch {
-      failed++;
+      skipped = skippedBefore;
+      failed += group.length;
     }
+    processed += group.length;
+    onProgress?.({ processed, total: selected.length, percent: Math.round((processed / selected.length) * 100), succeeded: removed, skipped, failed });
+    await yieldToInterface();
   }
 
   await appendHistory({
@@ -571,93 +632,125 @@ export async function removeOldDuplicates(selected: CleanupCandidate[]) {
     backupId: backup.id,
     status: failed ? 'partial' : 'success'
   });
-  await setJson(keys.scan, null);
+  const savedScan = await getJson<any>(keys.scan, null).catch(() => null);
+  if (savedScan) {
+    await setJson(keys.scan, {
+      ...savedScan,
+      cleanup: (savedScan.cleanup || []).filter((item: CleanupCandidate) => !removedKeys.has(`${item.contactId}:${item.oldNumber}:${item.newNumber}`)),
+      lastUpdatedAt: new Date().toISOString(),
+    });
+  }
   return { removed, skipped, failed, backupId: backup.id };
 }
 
-export async function restoreBackup(backupId: string) {
+// Reverses only the single number GNM changed for a migration/cleanup backup
+// item, keyed off the recorded old/new numbers. Deliberately never replaces
+// the contact's whole phone array: that would silently drop any number the
+// user added to this contact after the backup was taken. Returns null when
+// there is nothing safe to do (duplicate prevention - the target state
+// already holds, so restoring again would be a no-op or would create a dupe).
+function targetedRestorePhones(currentPhones: ExpoPhone[], item: any, backup: any): ExpoPhone[] | null {
+  const oldNumber = item.normalizedOldNumber || item.oldNumber || item.originalNumber;
+  const newNumber = item.migratedNumber || item.newNumber;
+  const snapshotEntry = (item.beforePhoneNumbers || []).find((p: any) => oldNumber && sameNormalizedPhone(String(p.number || ''), oldNumber));
+  const oldLabel = snapshotEntry?.label || item.phoneLabel || 'mobile';
+
+  if (backup.operationType === 'duplicate_cleanup') {
+    if (!oldNumber) return null;
+    if (currentPhones.some((p) => sameNormalizedPhone(phoneText(p), oldNumber))) return null;
+    return [...currentPhones, { label: oldLabel, number: oldNumber }];
+  }
+
+  if (backup.operationType === 'duplicate_add') {
+    if (!newNumber) return null;
+    const next = currentPhones.filter((p) => !sameNormalizedPhone(phoneText(p), newNumber));
+    return next.length === currentPhones.length ? null : next;
+  }
+
+  if (backup.operationType === 'replace_update') {
+    if (!oldNumber) return null;
+    let changed = false;
+    const next = currentPhones.map((p) => {
+      if (!changed && newNumber && sameNormalizedPhone(phoneText(p), newNumber)) { changed = true; return { ...p, number: oldNumber }; }
+      return p;
+    });
+    if (changed) return next;
+    if (currentPhones.some((p) => sameNormalizedPhone(phoneText(p), oldNumber))) return null;
+    return [...currentPhones, { label: oldLabel, number: oldNumber }];
+  }
+
+  return null;
+}
+
+export async function restoreBackup(backupId: string, onProgress?: (progress: MigrationProgress) => void) {
+  await assertNoConflictingOperation('restore');
+  const permitted = await ensureContactPermission();
+  if (!permitted) throw new Error('Contacts permission is required to restore a backup. Contacts stay on your device and are not uploaded.');
+
   const backups = await getBackupRecords();
   const backup = backups.find((b) => b.id === backupId);
   if (!backup) throw new Error('Backup not found on this device.');
-
-  let restored = 0;
-  let skipped = 0;
-  let failed = 0;
 
   const backupItems = await loadBackupItems(backup);
   if (!backupItems.length) throw new Error('This backup contains no contact records and cannot be restored.');
   const writableCopies = await getJson<WritableContactCopy[]>(keys.writableContactCopies, []);
 
-  for (const item of backupItems) {
+  let restored = 0;
+  let skipped = 0;
+  let failed = 0;
+  const failureDetails: Array<{ contactName: string; reason: string }> = [];
+  const total = backupItems.length;
+  const isFullSnapshot = backup.backupScope === 'full_contacts' || backup.operationType === 'manual_full_backup';
+
+  for (let i = 0; i < backupItems.length; i++) {
+    const item = backupItems[i];
+    const contactLabel = item.contactName || 'Unnamed contact';
     try {
       const writableCopy = writableCopies.find((entry) => entry.sourceContactId === item.contactId && entry.backupIds?.includes(backupId));
-      const savedWritableSnapshot = Array.isArray(item.beforePhoneNumbers) ? item.beforePhoneNumbers : [];
-      if (writableCopy && savedWritableSnapshot.length) {
+      const savedSnapshot: ExpoPhone[] = Array.isArray(item.beforePhoneNumbers) && item.beforePhoneNumbers.length
+        ? item.beforePhoneNumbers
+        : (Array.isArray(item.phoneNumbers) ? item.phoneNumbers : []);
+
+      if (writableCopy) {
         const copy = await Contacts.getContactByIdAsync(writableCopy.writableContactId, [Contacts.Fields.PhoneNumbers]);
-        if (copy) {
-          await updateAndVerifyPhones(copy, savedWritableSnapshot);
-          restored++;
-          continue;
-        }
-      }
-      const contact = await Contacts.getContactByIdAsync(item.contactId, [Contacts.Fields.PhoneNumbers]);
-      if (!contact) {
-        failed++;
+        if (!copy) { failed++; failureDetails.push({ contactName: contactLabel, reason: 'The writable safety copy for this contact no longer exists on this device.' }); continue; }
+        if (!savedSnapshot.length) { skipped++; continue; }
+        await updateAndVerifyPhones(copy, savedSnapshot);
+        restored++;
         continue;
       }
 
-      const phoneNumbers: ExpoPhone[] = [...((contact.phoneNumbers || []) as ExpoPhone[])];
-      const savedSnapshot = Array.isArray(item.beforePhoneNumbers) ? item.beforePhoneNumbers : [];
-      if (savedSnapshot.length) {
+      const contact = await Contacts.getContactByIdAsync(item.contactId, [Contacts.Fields.PhoneNumbers]);
+      if (!contact) { failed++; failureDetails.push({ contactName: contactLabel, reason: 'Contact no longer exists on this device.' }); continue; }
+      const currentPhones: ExpoPhone[] = [...((contact.phoneNumbers || []) as ExpoPhone[])];
+
+      if (isFullSnapshot) {
+        if (!savedSnapshot.length) { skipped++; continue; }
         await updateAndVerifyPhones(contact, savedSnapshot);
         restored++;
         continue;
       }
 
-      const oldNumber = item.normalizedOldNumber || item.oldNumber || item.originalNumber;
-      const newNumber = item.migratedNumber || item.newNumber;
-
-      if (backup.operationType === 'duplicate_cleanup') {
-        const hasOld = phoneNumbers.some((p) => sameNormalizedPhone(phoneText(p), oldNumber));
-        if (!hasOld && oldNumber) {
-          phoneNumbers.push({ label: item.phoneLabel || 'mobile', number: oldNumber });
-          await updateAndVerifyPhones(contact, phoneNumbers);
-          restored++;
-        } else skipped++;
-      } else if (backup.operationType === 'duplicate_add') {
-        const next = phoneNumbers.filter((p) => !sameNormalizedPhone(phoneText(p), newNumber));
-        if (next.length !== phoneNumbers.length) {
-          await updateAndVerifyPhones(contact, next);
-          restored++;
-        } else skipped++;
-      } else if (backup.operationType === 'replace_update') {
-        let changed = false;
-        const next = phoneNumbers.map((p) => {
-          if (newNumber && sameNormalizedPhone(phoneText(p), newNumber)) {
-            changed = true;
-            return { ...p, number: oldNumber };
-          }
-          return p;
-        });
-        if (!changed && oldNumber) {
-          next.push({ label: item.phoneLabel || 'mobile', number: oldNumber });
-          changed = true;
-        }
-        if (changed) {
-          await updateAndVerifyPhones(contact, next);
-          restored++;
-        } else skipped++;
-      } else if (backup.operationType === 'manual_full_backup') {
-        const savedPhones = Array.isArray(item.phoneNumbers) ? item.phoneNumbers : [];
-        if (!savedPhones.length) {
-          skipped++;
-        } else {
-          await updateAndVerifyPhones(contact, savedPhones);
-          restored++;
-        }
-      } else skipped++;
-    } catch {
+      const target = targetedRestorePhones(currentPhones, item, backup);
+      if (target) {
+        await updateAndVerifyPhones(contact, target);
+        restored++;
+      } else if (savedSnapshot.length && !currentPhones.length) {
+        // Contact currently has no numbers at all - fall back to the full
+        // snapshot rather than leaving it with nothing to restore into.
+        await updateAndVerifyPhones(contact, savedSnapshot);
+        restored++;
+      } else {
+        skipped++;
+      }
+    } catch (error: any) {
       failed++;
+      failureDetails.push({ contactName: contactLabel, reason: error?.message || 'The contacts provider rejected the restore.' });
+    }
+
+    if (i < 3 || (i + 1) % 25 === 0 || i === backupItems.length - 1) {
+      onProgress?.({ processed: i + 1, total, percent: total ? Math.round(((i + 1) / total) * 100) : 100, succeeded: restored, skipped, failed });
+      await yieldToInterface();
     }
   }
 
@@ -667,8 +760,9 @@ export async function restoreBackup(backupId: string) {
     numberSkipped: skipped,
     numberFailed: failed,
     backupId,
-    status: failed ? 'partial' : 'success'
+    status: failed ? 'partial' : 'success',
+    failureDetails
   });
   await setJson(keys.scan, null);
-  return { restored, skipped, failed };
+  return { restored, skipped, failed, failureDetails };
 }

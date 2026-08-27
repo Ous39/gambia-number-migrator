@@ -1,7 +1,24 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { Bell, CalendarRange, CreditCard, FileClock, LayoutDashboard, LifeBuoy, LogOut, Menu, Moon, Network, RadioTower, Settings, Sun, Users, X, type LucideIcon } from 'lucide-react';
+import { Bell, CalendarRange, CreditCard, FileClock, Globe, LayoutDashboard, LifeBuoy, LogOut, Mail, Menu, Moon, Network, RadioTower, Settings, Sun, Users, X, type LucideIcon } from 'lucide-react';
 import { API_BASE_URL, clearToken, getAdmin } from '../api/client';
+
+// Mirrors apps/api/src/middleware/auth.ts `roleAreas` so a role only ever sees
+// navigation links it is actually authorized to open. The API still enforces
+// this independently; this filtering is a usability layer, not the security boundary.
+export const navAreasByRole: Record<string, string[]> = {
+  owner: ['*'], admin: ['*'], viewer: ['*'],
+  operations: ['/', '/operators', '/rules', '/transition', '/notifications', '/app-config'],
+  finance: ['/', '/payments'],
+  support: ['/', '/support-devices', '/notifications'],
+  communications: ['/', '/website-content', '/inquiries', '/notifications'],
+};
+
+export function allowedNavPaths(role: string | undefined, paths: string[]): string[] {
+  const allowed = navAreasByRole[role || ''] || navAreasByRole.viewer;
+  if (allowed.includes('*')) return paths;
+  return paths.filter((path) => allowed.includes(path));
+}
 
 export default function Layout() {
   const navigate = useNavigate();
@@ -18,7 +35,7 @@ export default function Layout() {
     return () => window.removeEventListener('gnm-auth-expired', handler);
   }, [navigate]);
   const logout = () => { clearToken(); navigate('/login'); };
-  const links: Array<[string, string, LucideIcon]> = [
+  const allLinks: Array<[string, string, LucideIcon]> = [
     ['/', 'Dashboard', LayoutDashboard],
     ['/operators', 'Operators', RadioTower],
     ['/rules', 'Migration Rules', Network],
@@ -26,15 +43,19 @@ export default function Layout() {
     ['/payments', 'Payments', CreditCard],
     ['/support-devices', 'Support Devices', LifeBuoy],
     ['/notifications', 'Notifications', Bell],
+    ['/website-content', 'Website Content', Globe],
+    ['/inquiries', 'Enquiries', Mail],
     ['/app-config', 'App Config', Settings],
     ['/audit', 'Audit Logs', FileClock],
-    ...(getAdmin()?.role==='owner' ? [['/team', 'Team Access', Users] as [string,string,LucideIcon]] : []),
+    ...(admin?.role==='owner' ? [['/team', 'Team Access', Users] as [string,string,LucideIcon]] : []),
   ];
+  const visiblePaths = new Set(allowedNavPaths(admin?.role, allLinks.map(([to]) => to)));
+  const links = allLinks.filter(([to]) => visiblePaths.has(to));
   return (
     <div className="appShell">
       {menuOpen && <button className="menuBackdrop" aria-label="Close navigation" onClick={() => setMenuOpen(false)} />}
       <aside className={`sidebar ${menuOpen ? 'menuOpen' : ''}`}>
-        <div className="logo"><div className="logoMark">GN</div><span>Gambia Number<small>Admin Console · v2.8.5</small></span><button className="mobileClose" aria-label="Close menu" onClick={() => setMenuOpen(false)}><X size={20}/></button></div>
+        <div className="logo"><div className="logoMark">GNM</div><span>Gambia Number Migrator<small>Admin Console · v2.10.0</small></span><button className="mobileClose" aria-label="Close menu" onClick={() => setMenuOpen(false)}><X size={20}/></button></div>
         <nav className="nav" aria-label="Administration sections">{links.map(([to, label, Icon]) => <NavLink key={String(to)} to={String(to)} onClick={() => setMenuOpen(false)}><Icon aria-hidden="true" size={19}/> <span>{String(label)}</span></NavLink>)}</nav>
         <div className="sideHelp">
           <small className="oceanCredit">Powered by OceanBrown</small>

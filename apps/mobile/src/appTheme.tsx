@@ -11,14 +11,14 @@ export type Tone = 'primary' | 'secondary' | 'blue' | 'teal' | 'gold' | 'warning
 // state in the interface.
 export const lightPalette = {
   isDark: false,
-  bg: '#F5F7FB',
+  bg: '#F4F7FB',
   bg2: '#E9EEF7',
   surface: '#FFFFFF',
   surface2: '#F7F9FC',
   surface3: '#E9EEF7',
   card: '#FFFFFF',
   cardStrong: '#FFFFFF',
-  text: '#101828', title: '#071A33', muted: '#475467', softText: '#667085',
+  text: '#101828', title: '#071A33', muted: '#3F4D63', softText: '#596A82',
   line: '#E4EAF2', border: '#D0D9E6', primary: '#1769FF', primary2: '#0B4FD7',
   primarySoft: '#EAF1FF', secondary: '#3448A5', secondarySoft: '#EEF0FF',
   teal: '#0797A6',
@@ -96,18 +96,18 @@ function makeStyles(colors: AppColors) {
     largeTitle: { color: colors.text, fontSize: 32, lineHeight: 38, fontWeight: '900', letterSpacing: -0.8 },
     heading: { color: colors.text, fontSize: 21, lineHeight: 28, fontWeight: '900', letterSpacing: -0.25 },
     subheading: { color: colors.muted, fontSize: 16, lineHeight: 24, fontWeight: '600' },
-    body: { color: colors.muted, fontSize: 15, lineHeight: 22, fontWeight: '500' },
-    small: { color: colors.softText, fontSize: 12, lineHeight: 17, fontWeight: '700' },
+    body: { color: colors.muted, fontSize: 16, lineHeight: 24, fontWeight: '500' },
+    small: { color: colors.softText, fontSize: 13, lineHeight: 18, fontWeight: '600' },
     label: { color: colors.softText, fontSize: 11, lineHeight: 15, fontWeight: '900', letterSpacing: 1.15, textTransform: 'uppercase' },
     sectionTitle: { color: colors.text, fontSize: 18, lineHeight: 24, fontWeight: '900', marginBottom: 12 },
-    card: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: radius.xl, padding: 16, shadowColor: colors.shadow, shadowOpacity: colors.isDark ? 0.16 : 0.055, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 2 },
+    card: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.line, borderRadius: radius.xl, padding: 16, shadowColor: colors.shadow, shadowOpacity: colors.isDark ? 0.16 : 0.07, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 2 },
     softCard: { backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.line, borderRadius: radius.lg, padding: 14 },
     glassCard: { backgroundColor: colors.cardStrong, borderWidth: 1, borderColor: colors.border, borderRadius: radius.xl, padding: 18, shadowColor: colors.shadow, shadowOpacity: colors.isDark ? 0.23 : 0.10, shadowRadius: 24, shadowOffset: { width: 0, height: 12 }, elevation: 4 },
     input: { minHeight: 54, borderRadius: radius.md, backgroundColor: colors.card, borderColor: colors.border, borderWidth: 1, paddingHorizontal: 14, color: colors.text, fontSize: 16 },
     row: { flexDirection: 'row', alignItems: 'center' },
     rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     divider: { height: 1, backgroundColor: colors.line, marginVertical: 14 },
-    progressTrack: { height: 10, borderRadius: radius.pill, backgroundColor: colors.surface3, overflow: 'hidden' },
+    progressTrack: { height: 12, borderRadius: radius.pill, backgroundColor: colors.surface3, overflow: 'hidden' },
     progressFill: { height: '100%', borderRadius: radius.pill, backgroundColor: colors.primary },
     badgeText: { fontSize: 12, lineHeight: 16, fontWeight: '900' },
     navBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 4, backgroundColor: colors.isDark ? 'rgba(14,32,56,0.97)' : 'rgba(255,255,255,0.97)', borderColor: colors.border, borderWidth: 1, borderRadius: radius.xl, padding: 6, shadowColor: colors.shadow, shadowOpacity: colors.isDark ? 0.35 : 0.14, shadowRadius: 24, shadowOffset: { width: 0, height: 12 }, elevation: 18 },
@@ -117,7 +117,7 @@ function makeStyles(colors: AppColors) {
 export function useResponsive() {
   const { width, height } = useWindowDimensions();
   const usableWidth = Math.min(width, 760);
-  const horizontalPadding = width < 360 ? 14 : width < 430 ? 20 : 24;
+  const horizontalPadding = width < 360 ? 14 : width < 430 ? 18 : 24;
   const contentWidth = Math.max(0, usableWidth - horizontalPadding * 2);
   const compact = width < 370 || height < 700;
   const columns = width >= 720 ? 3 : 2;

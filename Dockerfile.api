@@ -33,4 +33,4 @@ COPY --from=build /app/database ./database
 
 EXPOSE 8089
 
-CMD ["sh", "-c", "pnpm --filter @gnm/api db:migrate && pnpm --filter @gnm/api db:seed && pnpm --filter @gnm/api start"]
+CMD ["sh", "-c", "pnpm --filter @gnm/api db:migrate && pnpm --filter @gnm/api start"]

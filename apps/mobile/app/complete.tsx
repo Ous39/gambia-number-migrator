@@ -16,29 +16,31 @@ export default function Complete() {
   const failed = Number(params.failed || 0);
   const backupId = String(params.backupId || '');
   const failureSummary = String(params.failureSummary || '');
+  const isCleanup = String(params.kind || '') === 'cleanup';
   const size = r.compact ? 72 : 88;
   return (
-    <Screen>
-      <BackHeader title="Migration Complete" subtitle="Your contact update summary." compact />
+    <Screen scroll={false}>
+      <BackHeader title={isCleanup ? 'Cleanup Complete' : 'Migration Complete'} subtitle={isCleanup ? 'Your verified duplicate cleanup summary.' : 'Your contact update summary.'} compact />
       <View style={{ alignItems: 'center', paddingTop: r.compact ? 10 : 16 }}>
         <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: colors.successSoft, borderColor: colors.success, borderWidth: 1, alignItems: 'center', justifyContent: 'center' }}>
           <AppIcon name={failed ? 'warning' : 'check'} color={colors.success} size={34} />
         </View>
-        <Text style={[styles.heading, { marginTop: 10, textAlign: 'center' }]}>{failed ? 'Completed with issues' : 'Migration complete'}</Text>
-        <Text style={[styles.small, { marginTop: 4, textAlign: 'center' }]}>{failed ? 'Some contacts need attention.' : 'Selected numbers were updated.'}</Text>
+        <Text style={[styles.heading, { marginTop: 10, textAlign: 'center' }]}>{failed ? 'Completed with issues' : isCleanup ? 'Cleanup complete' : 'Migration complete'}</Text>
+        <Text style={[styles.small, { marginTop: 4, textAlign: 'center' }]}>{failed ? 'Some contacts need attention.' : isCleanup ? 'Verified old duplicate numbers were removed.' : 'Selected numbers were updated.'}</Text>
       </View>
       <Card elevated style={{ marginTop: 14, padding: 14 }}>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
           <SummaryTile label="Selected" value={total} color={colors.primary} soft={colors.primarySoft} />
-          <SummaryTile label="Updated" value={updated} color={colors.success} soft={colors.successSoft} />
+          <SummaryTile label={isCleanup ? 'Removed' : 'Updated'} value={updated} color={colors.success} soft={colors.successSoft} />
           <SummaryTile label="Skipped" value={skipped} color={colors.warning} soft={colors.warningSoft} />
           <SummaryTile label="Failed" value={failed} color={colors.danger} soft={colors.dangerSoft} />
         </View>
         {backupId ? <Text numberOfLines={1} ellipsizeMode="middle" style={[styles.small, { marginTop: 10, textAlign: 'center' }]}>Backup: {backupId}</Text> : null}
       </Card>
-      {failureSummary ? <Card style={{ marginTop: 10, borderColor: colors.danger, padding: 12 }}><Text style={{ color: colors.danger, fontWeight: '900' }}>Contacts needing attention</Text><Text numberOfLines={4} style={[styles.small, { marginTop: 5 }]}>{failureSummary}</Text><Text style={[styles.small, { marginTop: 5, color: colors.primary }]}>Full details are available in History.</Text></Card> : null}
+      {failureSummary ? <Card style={{ marginTop: 10, borderColor: colors.danger, padding: 12 }}><Text style={{ color: colors.danger, fontWeight: '900' }}>Contacts needing attention</Text><Text numberOfLines={2} style={[styles.small, { marginTop: 6, lineHeight: 18 }]}>{failureSummary}</Text><Text style={[styles.small, { marginTop: 6, color: colors.primary }]}>Full details are available in History.</Text></Card> : null}
       {copied ? <Card style={{ marginTop: 10, borderColor: colors.primary, padding: 12 }}><Text style={{ color: colors.primary, fontWeight: '900' }}>{copied} restricted contact{copied === 1 ? '' : 's'} handled</Text><Text style={[styles.small, { marginTop: 4 }]}>Android protected the original SIM or app-owned record, so GNM created one controlled writable copy with the migrated number.</Text></Card> : null}
-      <Button title="Done" icon="right" onPress={() => router.replace('/dashboard')} style={{ marginTop: 14 }} />
+      <View style={{ flex: 1, minHeight: 8 }} />
+      <Button title="Done" icon="right" onPress={() => router.replace('/dashboard')} style={{ marginTop: 10 }} />
       <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
         <Button title="Backups" variant="secondary" icon="backup" onPress={() => router.replace('/backup')} style={{ flex: 1 }} />
         <Button title="History" variant="secondary" icon="history" onPress={() => router.replace('/history')} style={{ flex: 1 }} />

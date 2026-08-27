@@ -3,7 +3,11 @@
     "name": "GNM",
     "slug": "gambia-number-migrator",
     "description": "Privacy-first contact number migration for The Gambia.",
+<<<<<<< HEAD
     "version": "1.0.0",
+=======
+    "version": "2.8.10",
+>>>>>>> caf642300d18bdafaf97e0019a2a51dfed96b56c
     "icon": "./assets/icon.png",
     "orientation": "portrait",
     "scheme": "gnm",
@@ -11,8 +15,13 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
+<<<<<<< HEAD
       "bundleIdentifier": "gm.oceanbrown.gnm",
       "buildNumber": "40",
+=======
+      "bundleIdentifier": "com.oceanbrown.gambianumbermigrator",
+      "buildNumber": "34",
+>>>>>>> caf642300d18bdafaf97e0019a2a51dfed96b56c
       "infoPlist": {
         "NSContactsUsageDescription": "GNM scans contacts locally so you can preview and safely update Gambian numbers. Contacts are never uploaded.",
         "ITSAppUsesNonExemptEncryption": false
@@ -29,8 +38,13 @@
         "WRITE_CONTACTS",
         "POST_NOTIFICATIONS"
       ],
+<<<<<<< HEAD
       "versionCode": 41,
       "package": "gm.oceanbrown.gnm"
+=======
+      "versionCode": 35,
+      "package": "com.oceanbrown.gambianumbermigrator"
+>>>>>>> caf642300d18bdafaf97e0019a2a51dfed96b56c
     },
     "web": {
       "favicon": "./assets/favicon.png"

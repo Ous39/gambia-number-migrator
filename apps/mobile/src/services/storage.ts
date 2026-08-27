@@ -1,7 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const keys = {
+<<<<<<< HEAD
   onboarded: 'gnm_onboarded', notificationPermissionPrompted: 'gnm_notification_permission_prompted', rules: 'gnm_rules', transition: 'gnm_transition', config: 'gnm_config', scan: 'gnm_scan', history: 'gnm_history', backups: 'gnm_backups', unlocks: 'gnm_unlocks', accessStatus: 'gnm_access_status', preferences: 'gnm_preferences', notifications: 'gnm_notifications', notificationStatus: 'gnm_notification_status', migrationJob: 'gnm_migration_job', operationJob: 'gnm_operation_job', writableContactCopies: 'gnm_writable_contact_copies', pendingTrialUsage: 'gnm_pending_trial_usage'
+=======
+  onboarded: 'gnm_onboarded', notificationPermissionPrompted: 'gnm_notification_permission_prompted', rules: 'gnm_rules', transition: 'gnm_transition', config: 'gnm_config', scan: 'gnm_scan', history: 'gnm_history', backups: 'gnm_backups', unlocks: 'gnm_unlocks', accessStatus: 'gnm_access_status', preferences: 'gnm_preferences', notifications: 'gnm_notifications', notificationStatus: 'gnm_notification_status', migrationJob: 'gnm_migration_job', writableContactCopies: 'gnm_writable_contact_copies'
+>>>>>>> caf642300d18bdafaf97e0019a2a51dfed96b56c
 };
 export async function getJson<T>(key: string, fallback: T): Promise<T> { const raw = await AsyncStorage.getItem(key); if (!raw) return fallback; try { return JSON.parse(raw) as T; } catch { return fallback; } }
 export async function setJson(key: string, value: unknown) { await AsyncStorage.setItem(key, JSON.stringify(value)); }

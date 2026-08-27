@@ -8,7 +8,11 @@ import { audit } from '../services/auditService';
 export const websiteContentRouter = Router();
 
 function mapAnnouncement(row: any) {
-  return { id: row.id, title: row.title, body: row.body, status: row.status, createdAt: row.created_at, updatedAt: row.updated_at };
+  return { id: row.id, title: row.title, body: row.body, summary: row.summary || null, slug: row.slug || null, status: row.status, publishedAt: row.published_at || null, createdAt: row.created_at, updatedAt: row.updated_at };
+}
+
+function slugify(value: string) {
+  return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 80);
 }
 function mapFaq(row: any) {
   return { id: row.id, question: row.question, answer: row.answer, sortOrder: row.sort_order, active: row.active };
@@ -40,7 +44,7 @@ websiteContentRouter.get('/admin/website-content', requireAdmin, async (_req, re
   } catch (e) { next(e); }
 });
 
-const announcementSchema = z.object({ title: z.string().trim().min(2).max(160), body: z.string().trim().min(2).max(2000), status: z.enum(['draft', 'published']).default('draft') });
+const announcementSchema = z.object({ title: z.string().trim().min(2).max(160), body: z.string().trim().min(2).max(4000), summary: z.string().trim().max(280).optional().or(z.literal('').transform(() => undefined)), status: z.enum(['draft', 'published']).default('draft') });
 const faqSchema = z.object({ question: z.string().trim().min(2).max(300), answer: z.string().trim().min(2).max(2000), sortOrder: z.coerce.number().int().min(0).max(10000).default(0) });
 const optionalUrl = z.string().trim().max(500).regex(/^https?:\/\//, 'Use a full http(s) URL').optional().or(z.literal('').transform(() => undefined));
 const teamMemberSchema = z.object({
@@ -57,7 +61,13 @@ const teamMemberSchema = z.object({
 websiteContentRouter.post('/admin/website-content/announcements', requireAdmin, validateBody(announcementSchema), async (req, res, next) => {
   try {
     const b = req.body;
-    const r = await query('INSERT INTO website_announcements (title,body,status,created_by) VALUES ($1,$2,$3,$4) RETURNING *', [b.title, b.body, b.status, req.admin?.adminId]);
+    const baseSlug = slugify(b.title) || 'update';
+    const r = await query(
+      `INSERT INTO website_announcements (title,body,summary,status,slug,published_at,created_by)
+       VALUES ($1,$2,$3,$4,$5 || '-' || substr(gen_random_uuid()::text,1,6), CASE WHEN $4='published' THEN NOW() ELSE NULL END,$6)
+       RETURNING *`,
+      [b.title, b.body, b.summary || null, b.status, baseSlug, req.admin?.adminId]
+    );
     await audit(req, 'website_announcement_created', 'website_announcement', r.rows[0].id, null, r.rows[0]);
     res.status(201).json({ data: mapAnnouncement(r.rows[0]) });
   } catch (e) { next(e); }
@@ -67,7 +77,12 @@ websiteContentRouter.patch('/admin/website-content/announcements/:id', requireAd
     const status = z.enum(['draft', 'published']).parse(req.body?.status);
     const before = await query('SELECT * FROM website_announcements WHERE id=$1', [req.params.id]);
     if (!before.rowCount) return res.status(404).json({ message: 'Announcement not found' });
-    const r = await query('UPDATE website_announcements SET status=$2, updated_at=NOW() WHERE id=$1 RETURNING *', [req.params.id, status]);
+    const r = await query(
+      `UPDATE website_announcements
+       SET status=$2, published_at = CASE WHEN $2='published' THEN COALESCE(published_at, NOW()) ELSE published_at END, updated_at=NOW()
+       WHERE id=$1 RETURNING *`,
+      [req.params.id, status]
+    );
     await audit(req, status === 'published' ? 'website_announcement_published' : 'website_announcement_unpublished', 'website_announcement', String(req.params.id), before.rows[0], r.rows[0]);
     res.json({ data: mapAnnouncement(r.rows[0]) });
   } catch (e) { next(e); }

@@ -1,5 +1,31 @@
 # Changelog
 
+## GNM — 2026-08-27 (public website v2)
+
+Full redesign of the public website (`apps/web`) plus four new capabilities. New token-based
+design system in `apps/web/src/styles.css` (light + dark, responsive, reduced-motion aware),
+new `SiteShell` (`Page`, mobile menu, theme toggle) applied to every page.
+
+**New pages**
+- **`/status`** — live readiness fed by the new public API: service state, published migration-rule
+  version + active rule count, access/pricing (incl. free-launch and remaining promo places),
+  enabled payment providers, transition window, current announcement. Auto-refreshes each minute.
+- **`/updates`** + **`/updates/:slug`** — public announcements feed with stable slugs, plus an RSS
+  feed at `/api/public/updates.xml`.
+- **`/organisations`** — bulk-migration request form; composes a structured message into the
+  existing inquiries API (`category: organisation`). No contact data collected.
+- Enhanced **number checker** — reads the published rules and previews the migrated 9-digit number
+  (before → after) with operator name where a rule matches; shareable `?n=` link and print. Uses a
+  small self-contained matcher in `apps/web/src/lib/numbers.ts` (no `@gnm/shared` dependency in web).
+
+**Backend**
+- `apps/api/src/routes/public.ts` (new): `GET /public/status`, `/public/updates`,
+  `/public/updates/:slug`, `/public/updates.xml`. Read-only, cache-friendly, no admin/device data.
+- `websiteContent.ts`: announcements now carry `slug` + `summary` + `published_at`
+  (set on publish). Migration `027_website_updates.sql` — forward-only, idempotent, backfills.
+
+`pnpm typecheck` / `pnpm test` / `pnpm build` all green (web CSS 38 kB → 18 kB).
+
 ## GNM — 2026-08-27 (Wave Checkout integration)
 
 Full Wave payment-integration audit plus a production-ready implementation. See

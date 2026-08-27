@@ -58,3 +58,26 @@ export function getAppConfig() {
 export function submitInquiry(payload: { name: string; email: string; category: string; message: string }) {
   return api<{ data: { id: string } }>('/inquiries', { method: 'POST', body: JSON.stringify(payload) });
 }
+
+export type PublicStatus = {
+  generatedAt: string;
+  degraded?: boolean;
+  service: { maintenance: boolean; minimumAppVersion: string | null };
+  pricing: { amount: number; currency: string; freeLaunch: boolean; freeMode: string; promotionalPlacesRemaining: number | null };
+  payments: { wave: boolean; aps: boolean };
+  rules: { publishedVersion: number | null; publishedAt: string | null; activeRuleCount: number | null };
+  transition: { startDate: string | null; endDate: string | null; showNotice: boolean | null; bannerMessage: string | null };
+  announcement: string | null;
+};
+
+export type UpdateEntry = { slug: string; title: string; summary: string; body: string; publishedAt: string };
+
+export function getStatus() {
+  return api<{ data: PublicStatus }>('/public/status').then((r) => r.data);
+}
+export function getUpdates() {
+  return api<{ data: UpdateEntry[] }>('/public/updates').then((r) => r.data);
+}
+export function getUpdate(slug: string) {
+  return api<{ data: UpdateEntry }>(`/public/updates/${encodeURIComponent(slug)}`).then((r) => r.data);
+}

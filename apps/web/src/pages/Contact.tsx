@@ -1,39 +1,52 @@
 import { Seo } from '../components/Seo';
-import { SiteHeader, SiteFooter } from '../components/SiteShell';
+import { Page } from '../components/SiteShell';
 import { ContactForm } from '../components/ContactForm';
 import { useSupportConfig } from '../hooks/useSupportConfig';
 
 export default function Contact() {
   const { supportEmail } = useSupportConfig();
+  const routes: Array<[string, string, string, string]> = [
+    ['01', 'General & technical support', 'Include your device type, OS, GNM app version and a short description of the issue.', 'GNM%20Support%20Request'],
+    ['02', 'Business & institution support', 'Tell us the organisation name and approximate number of contacts. Do not attach contact data.', 'GNM%20Organisation%20Migration'],
+    ['03', 'Partnerships & media', 'Regulator, operator, technology, distribution, funding, media and community enquiries.', 'GNM%20Partnership%20Enquiry'],
+  ];
   return (
-    <main className="legal-page">
+    <Page>
       <Seo title="Contact GNM | Gambia Number Migrator" description="Contact the GNM support and partnership team for technical help, business migration, media and partnership enquiries." />
-      <SiteHeader />
-      <div className="contact-hero container">
-        <div>
-          <span className="kicker">CONTACT GNM</span><h1>We're here to help.</h1>
-          <p>Whether you need app support, want to prepare an organisation, or would like to partner with GNM, choose the right contact route below.</p>
-          <div className="response-note"><span>✓</span><p><b>Clear and safe support</b><small>Never include an OTP, PIN, password or full contact backup in your message.</small></p></div>
-        </div>
-        <div className="contact-panel">
-          <div className="contact-item"><span>01</span><div><small>GENERAL &amp; TECHNICAL SUPPORT</small><h2>App help and problem reports</h2><p>Include your device type, operating system, GNM app version and a short description of the issue.</p><a href={`mailto:${supportEmail}?subject=GNM%20Support%20Request`}>{supportEmail} →</a></div></div>
-          <div className="contact-item"><span>02</span><div><small>BUSINESS &amp; INSTITUTION SUPPORT</small><h2>Plan a larger migration</h2><p>Tell us the organisation name, approximate number of contacts and the support you need. Do not attach contact data.</p><a href={`mailto:${supportEmail}?subject=GNM%20Organisation%20Migration`}>Request organisation support →</a></div></div>
-          <div className="contact-item"><span>03</span><div><small>PARTNERSHIPS &amp; MEDIA</small><h2>Work with the GNM team</h2><p>For regulator, operator, technology, distribution, funding, media and community partnership enquiries.</p><a href={`mailto:${supportEmail}?subject=GNM%20Partnership%20Enquiry`}>Send a partnership enquiry →</a></div></div>
-        </div>
-      </div>
-      <section className="contact-form-section container">
-        <div><span className="kicker">SEND US A MESSAGE</span><h2>Contact the GNM team directly.</h2><p>Your enquiry will appear securely in the GNM administration dashboard for review.</p></div>
-        <ContactForm />
-      </section>
-      <section className="contact-faq container">
-        <div><span className="kicker">BEFORE YOU CONTACT US</span><h2>Help us help you faster.</h2></div>
-        <div>
-          <p><b>For technical issues</b><span>Include what you expected, what happened and any error message. You may attach a screenshot only after hiding phone numbers and private information.</span></p>
-          <p><b>Expected response</b><span>We aim to acknowledge genuine enquiries as soon as possible. Response times may be longer during the national migration period.</span></p>
-          <p><b>Official communications</b><span>Trust only messages published on this website or sent from an official OceanBrown address.</span></p>
+      <section className="section">
+        <div className="container hero-grid">
+          <div>
+            <span className="eyebrow">Contact GNM</span>
+            <h1 style={{ marginTop: 14 }}>We're here to help.</h1>
+            <p className="lead">App support, organisation planning, or a partnership — choose the right route below, or send a message directly.</p>
+            <div className="callout ok" style={{ marginTop: 20 }}>
+              <span className="tick">✓</span>
+              <p>Never include an OTP, PIN, password or full contact backup in your message.</p>
+            </div>
+          </div>
+          <div className="stack">
+            {routes.map(([n, title, body, subj]) => (
+              <div className="card" key={n}>
+                <span className="step-no">{n}</span>
+                <h3 style={{ marginTop: 6 }}>{title}</h3>
+                <p>{body}</p>
+                <a className="link-arrow" href={`mailto:${supportEmail}?subject=${subj}`}>{supportEmail}</a>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
-      <SiteFooter />
-    </main>
+
+      <section className="section section-tint">
+        <div className="container hero-grid">
+          <div>
+            <span className="eyebrow">Send us a message</span>
+            <h2>Contact the GNM team directly.</h2>
+            <p className="lead">Your enquiry appears securely in the GNM administration dashboard for review.</p>
+          </div>
+          <ContactForm />
+        </div>
+      </section>
+    </Page>
   );
 }

@@ -1,98 +1,77 @@
 import { useEffect, useState } from 'react';
-import { Arrow } from './Icons';
 
-const SCREENS = ['dashboard', 'preview', 'complete'] as const;
+const SCREENS = ['scan', 'preview', 'done'] as const;
 type ScreenName = typeof SCREENS[number];
 
-const screenLabel: Record<ScreenName, string> = {
-  dashboard: 'Dashboard',
-  preview: 'Preview changes',
-  complete: 'Migration complete',
-};
-
-function DashboardScreen() {
+function Scan() {
   return (
     <>
-      <span className="status-pill">READY TO MIGRATE</span>
-      <h2>Your contacts,<br />ready for <em>9 digits.</em></h2>
-      <p>We found eligible Gambian numbers that can be safely updated.</p>
-      <div className="scan-card"><div className="scan-num">247</div><div><b>Contacts scanned</b><small>86 numbers ready to update</small></div><span>✓</span></div>
-      <div className="phone-button">Review &amp; migrate <Arrow /></div>
-      <div className="secure-note">◈ Your contacts stay on your device</div>
+      <span className="badge ok" style={{ fontSize: '.6rem' }}>Ready to migrate</span>
+      <h3 style={{ marginTop: 10, fontSize: '1.05rem', lineHeight: 1.2 }}>Your contacts, ready for 9 digits.</h3>
+      <p style={{ fontSize: '.72rem', marginTop: 6 }}>Eligible Gambian numbers found and ready to update safely.</p>
+      <div className="phone-row"><span className="num">247</span><div style={{ flex: 1 }}><b style={{ fontSize: '.72rem' }}>Contacts scanned</b><br /><small style={{ fontSize: '.62rem', color: 'var(--ink-faint)' }}>86 numbers ready</small></div><span style={{ color: 'var(--accent)' }}>✓</span></div>
+      <div className="phone-cta">Review &amp; migrate →</div>
     </>
   );
 }
 
-const previewRows = [
-  { name: 'Awa Touray', from: '363 1776', to: '83 363 1776', status: 'Ready', tone: 'ready' },
-  { name: 'Lamin Ceesay', from: '', to: '87 123 4567', status: 'Already updated', tone: 'done' },
-  { name: 'Fatou Jallow', from: '345 1567', to: '87 345 1567', status: 'Ready', tone: 'ready' },
+const rows = [
+  { name: 'Awa Touray', from: '363 1776', to: '83 363 1776' },
+  { name: 'Lamin Ceesay', from: '', to: '87 123 4567' },
+  { name: 'Fatou Jallow', from: '345 1567', to: '87 345 1567' },
 ];
-
-function PreviewScreen() {
+function Preview() {
   return (
-    <div className="phone-preview-list">
-      <div className="phone-preview-head"><b>Preview changes</b><span>3 contacts</span></div>
-      {previewRows.map((row) => (
-        <div className="preview-row" key={row.name}>
-          <div className="preview-row-name">{row.name}</div>
-          <div className="preview-row-numbers">{row.from ? <><span className="old">{row.from}</span> <Arrow /> <span className="new">{row.to}</span></> : <span className="new">{row.to}</span>}</div>
-          <span className={`preview-pill ${row.tone}`}>{row.status}</span>
+    <>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.7rem', fontWeight: 800 }}><span>Preview changes</span><span style={{ color: 'var(--ink-faint)' }}>3 contacts</span></div>
+      {rows.map((r) => (
+        <div className="phone-row" key={r.name} style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 3 }}>
+          <b style={{ fontSize: '.7rem' }}>{r.name}</b>
+          <span style={{ fontSize: '.62rem' }}>{r.from && <span className="old">{r.from} </span>}<span className="new">{r.to}</span></span>
         </div>
       ))}
-      <div className="phone-button small">2 selected · Migrate now</div>
-    </div>
+      <div className="phone-cta">2 selected · Migrate now</div>
+    </>
   );
 }
-
-function CompleteScreen() {
+function Done() {
   return (
-    <div className="phone-complete">
-      <div className="phone-complete-check">✓</div>
-      <b>Migration complete</b>
-      <p>86 numbers updated safely</p>
-      <div className="phone-complete-stats">
-        <div><b>86</b><span>Updated</span></div>
-        <div><b>2</b><span>Skipped</span></div>
-        <div><b>0</b><span>Failed</span></div>
+    <div style={{ textAlign: 'center', padding: '14px 0' }}>
+      <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'var(--accent-soft)', color: 'var(--accent)', display: 'grid', placeItems: 'center', margin: '0 auto 10px', fontWeight: 900, fontSize: 22 }}>✓</div>
+      <b style={{ fontSize: '.95rem' }}>Migration complete</b>
+      <p style={{ fontSize: '.68rem', marginTop: 4 }}>86 numbers updated safely</p>
+      <div style={{ display: 'flex', justifyContent: 'center', gap: 18, marginTop: 12, fontSize: '.62rem' }}>
+        <div><b style={{ fontSize: '1rem' }}>86</b><br />Updated</div>
+        <div><b style={{ fontSize: '1rem' }}>2</b><br />Skipped</div>
+        <div><b style={{ fontSize: '1rem' }}>0</b><br />Failed</div>
       </div>
-      <div className="phone-button small">Done</div>
     </div>
   );
 }
 
-const renderers: Record<ScreenName, () => JSX.Element> = {
-  dashboard: DashboardScreen,
-  preview: PreviewScreen,
-  complete: CompleteScreen,
-};
+const R: Record<ScreenName, () => JSX.Element> = { scan: Scan, preview: Preview, done: Done };
 
 export function AppPreviewPhone() {
-  const [index, setIndex] = useState(0);
-  const screen = SCREENS[index];
-
+  const [i, setI] = useState(0);
   useEffect(() => {
-    const timer = setInterval(() => setIndex((i) => (i + 1) % SCREENS.length), 4200);
-    return () => clearInterval(timer);
+    const t = setInterval(() => setI((v) => (v + 1) % SCREENS.length), 4200);
+    return () => clearInterval(t);
   }, []);
-
-  const Screen = renderers[screen];
-
+  const Screen = R[SCREENS[i]];
   return (
-    <div className="phone-stage" aria-label="GNM app preview, cycling through the dashboard, preview and completion screens">
-      <div className="orbit orbit-one" /><div className="orbit orbit-two" />
-      <div className="float-card card-backup"><span className="mini-icon">✓</span><div><b>Backup complete</b><small>Your contacts are safe</small></div></div>
+    <div aria-label="GNM app preview">
       <div className="phone">
-        <div className="phone-top"><span>9:41</span><i /></div>
-        <div className="app-head"><div className="app-logo">G</div><div><small>Welcome to</small><b>Gambia Number Migrator</b></div><button aria-label="Notifications">◉</button></div>
-        <div className={`phone-body phone-body-${screen}`} key={screen}>
-          <Screen />
+        <div className="phone-notch" />
+        <div className="phone-app-head">
+          <span className="brand-mark">G</span>
+          <div><b>Gambia Number Migrator</b><br /><small>Welcome</small></div>
         </div>
+        <div className="phone-screen" key={SCREENS[i]}><Screen /></div>
       </div>
-      <div className="float-card card-updated"><span className="mini-icon blue">86</span><div><b>Numbers ready</b><small>Preview before updating</small></div></div>
-      <div className="phone-dots" role="tablist" aria-label="App screen">
-        {SCREENS.map((s, i) => (
-          <button key={s} type="button" role="tab" aria-selected={i === index} aria-label={screenLabel[s]} className={i === index ? 'active' : ''} onClick={() => setIndex(i)} />
+      <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginTop: 14 }} role="tablist" aria-label="App screen">
+        {SCREENS.map((s, idx) => (
+          <button key={s} type="button" role="tab" aria-selected={idx === i} aria-label={s} onClick={() => setI(idx)}
+            style={{ width: idx === i ? 18 : 7, height: 7, borderRadius: 5, border: 0, cursor: 'pointer', background: idx === i ? 'var(--brand)' : 'var(--line-strong)', transition: '.2s' }} />
         ))}
       </div>
     </div>

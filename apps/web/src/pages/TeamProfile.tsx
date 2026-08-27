@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { Seo } from '../components/Seo';
-import { SiteHeader, SiteFooter } from '../components/SiteShell';
+import { Page } from '../components/SiteShell';
 import { getPublicContent, resolveAssetUrl, type TeamMember } from '../api/client';
 
 type LoadState = 'loading' | 'found' | 'not-found';
@@ -24,34 +24,37 @@ export default function TeamProfile() {
   }, [id]);
 
   return (
-    <main className="legal-page team-profile-page">
-      <Seo title={member ? `${member.name} | Gambia Number Migrator Team` : 'Team member | Gambia Number Migrator'} description={member ? `${member.name}, ${member.role} at GNM.` : 'GNM team profile.'} />
-      <SiteHeader />
-      <div className="container team-profile">
-        {state === 'loading' && <p className="body">Loading profile…</p>}
+    <Page>
+      <Seo
+        title={member ? `${member.name} | GNM Team` : 'Team member | GNM'}
+        description={member ? `${member.name}, ${member.role} at GNM.` : 'GNM team profile.'}
+      />
+      <article className="container section doc">
+        {state === 'loading' && <p className="muted">Loading profile…</p>}
         {state === 'not-found' && (
-          <div className="team-profile-missing">
-            <span className="kicker">TEAM</span>
-            <h1>Profile not found</h1>
-            <p className="legal-lead">This team member's profile isn't available right now.</p>
-            <Link className="button button-small" to="/#team">Back to the team</Link>
-          </div>
+          <>
+            <span className="eyebrow">Team</span>
+            <h1 style={{ marginTop: 12 }}>Profile not found</h1>
+            <p className="lead">This team member's profile isn't available right now.</p>
+            <Link className="btn small" to="/#team" style={{ marginTop: 16 }}>Back to the team</Link>
+          </>
         )}
         {state === 'found' && member && (
-          <article className="team-profile-card">
-            {member.photoUrl ? <img className="team-profile-photo" src={resolveAssetUrl(member.photoUrl)} alt={member.name} /> : <span className="team-profile-avatar">{member.initials}</span>}
-            <span className="kicker">GNM TEAM</span>
-            <h1>{member.name}</h1>
-            <b className="team-profile-role">{member.role}</b>
-            <p className="legal-lead">{member.longBio || member.bio}</p>
-            <div className="team-profile-actions">
-              {member.portfolioUrl && <a className="button button-small" href={member.portfolioUrl} target="_blank" rel="noreferrer">View portfolio ↗</a>}
-              <Link className="text-link blue-link" to="/#team">← Back to the team</Link>
+          <>
+            {member.photoUrl
+              ? <img className="avatar" style={{ width: 96, height: 96, borderRadius: 24 }} src={resolveAssetUrl(member.photoUrl)} alt={member.name} />
+              : <span className="avatar" style={{ width: 96, height: 96, borderRadius: 24, fontSize: 24 }}>{member.initials}</span>}
+            <span className="eyebrow" style={{ marginTop: 16, display: 'inline-flex' }}>GNM team</span>
+            <h1 style={{ marginTop: 10 }}>{member.name}</h1>
+            <b style={{ color: 'var(--brand)' }}>{member.role}</b>
+            <p className="lead" style={{ marginTop: 16 }}>{member.longBio || member.bio}</p>
+            <div className="hero-cta">
+              {member.portfolioUrl && <a className="btn small" href={member.portfolioUrl} target="_blank" rel="noreferrer">View portfolio ↗</a>}
+              <Link className="link-arrow" to="/#team">Back to the team</Link>
             </div>
-          </article>
+          </>
         )}
-      </div>
-      <SiteFooter />
-    </main>
+      </article>
+    </Page>
   );
 }

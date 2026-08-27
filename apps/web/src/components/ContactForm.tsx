@@ -24,12 +24,11 @@ export function ContactForm() {
   }
 
   return (
-    <form className="inquiry-form" onSubmit={submit}>
-      <div className="form-title"><span>✦</span><div><b>Send an enquiry</b><small>All fields marked * are required</small></div></div>
+    <form className="form card pad-lg" onSubmit={submit}>
       <label>Full name *<input name="name" required minLength={2} maxLength={100} autoComplete="name" /></label>
       <label>Email address *<input name="email" type="email" required maxLength={160} autoComplete="email" /></label>
       <label>What do you need help with? *
-        <select name="category" required>
+        <select name="category" required defaultValue="general">
           <option value="general">General support</option>
           <option value="technical">Technical issue</option>
           <option value="organisation">Business or institution</option>
@@ -38,9 +37,9 @@ export function ContactForm() {
         </select>
       </label>
       <label>Your message *<textarea name="message" required minLength={10} maxLength={3000} rows={6} /></label>
-      <button className="button" disabled={state === 'sending'}>{state === 'sending' ? 'Sending…' : 'Send enquiry →'}</button>
-      <p className={`form-status ${state}`} aria-live="polite">{message}</p>
-      <small className="form-safe">Do not include passwords, OTPs, PINs or private contact data.</small>
+      <button className="btn" disabled={state === 'sending'}>{state === 'sending' ? 'Sending…' : 'Send enquiry →'}</button>
+      {message && <p className={`form-status ${state}`} aria-live="polite">{message}</p>}
+      <small className="form-hint">Fields marked * are required. Do not include passwords, OTPs, PINs or private contact data.</small>
     </form>
   );
 }

@@ -22,7 +22,7 @@
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#071A33"
+        "backgroundColor": "#0B211A"
       },
       "permissions": [
         "READ_CONTACTS",
@@ -40,11 +40,11 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#F5F7FB",
+          "backgroundColor": "#0B211A",
           "image": "./assets/splash-icon.png",
-          "imageWidth": 180,
+          "imageWidth": 200,
           "dark": {
-            "backgroundColor": "#07111F",
+            "backgroundColor": "#0B211A",
             "image": "./assets/splash-icon.png"
           }
         }

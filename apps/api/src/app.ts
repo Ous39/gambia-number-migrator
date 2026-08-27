@@ -20,6 +20,7 @@ import { dashboardRouter } from './routes/dashboard';
 import { devicesRouter } from './routes/devices';
 import { notificationsRouter } from './routes/notifications';
 import { websiteContentRouter } from './routes/websiteContent';
+import { publicRouter } from './routes/public';
 import { inquiriesRouter } from './routes/inquiries';
 import { uploadsRouter, UPLOAD_DIR } from './routes/uploads';
 
@@ -99,6 +100,7 @@ export function createApp() {
   }));
   app.use('/api', uploadsRouter);
   app.use('/api', websiteContentRouter);
+  app.use('/api', publicRouter);
   app.use('/api/inquiries', rateLimit({
     windowMs: 60_000,
     limit: 6,

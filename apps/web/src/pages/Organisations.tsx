@@ -19,8 +19,10 @@ export default function Organisations() {
 
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    // Capture the form element now — e.currentTarget is null after the await.
+    const formEl = e.currentTarget;
     setState('sending');
-    const f = new FormData(e.currentTarget);
+    const f = new FormData(formEl);
     const body = [
       `Organisation: ${f.get('org')}`,
       `Contact person: ${f.get('name')}`,
@@ -40,7 +42,7 @@ export default function Organisations() {
       });
       setState('success');
       setMessage('Thank you. Your organisation request has been received and will appear in the GNM admin dashboard for review.');
-      e.currentTarget.reset();
+      formEl.reset();
     } catch (err) {
       setState('error');
       setMessage(err instanceof Error ? err.message : 'Please try again.');

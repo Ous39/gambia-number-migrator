@@ -9,14 +9,15 @@ export function ContactForm() {
 
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    // Capture the form element now — e.currentTarget is null after the await.
+    const formEl = e.currentTarget;
     setState('sending');
-    const form = new FormData(e.currentTarget);
-    const payload = Object.fromEntries(form.entries()) as any;
+    const payload = Object.fromEntries(new FormData(formEl).entries()) as any;
     try {
       await submitInquiry(payload);
       setState('success');
       setMessage('Thank you. Your enquiry has been received.');
-      e.currentTarget.reset();
+      formEl.reset();
     } catch (err) {
       setState('error');
       setMessage(err instanceof Error ? err.message : 'Please try again.');

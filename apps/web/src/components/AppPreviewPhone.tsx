@@ -63,7 +63,7 @@ export function AppPreviewPhone() {
       <div className="phone">
         <div className="phone-notch" />
         <div className="phone-app-head">
-          <span className="brand-mark">G</span>
+          <img className="brand-logo" src="/logo.png" alt="" width={28} height={28} />
           <div><b>Gambia Number Migrator</b><br /><small>Welcome</small></div>
         </div>
         <div className="phone-screen" key={SCREENS[i]}><Screen /></div>

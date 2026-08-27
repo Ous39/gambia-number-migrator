@@ -39,7 +39,7 @@ export function SiteHeader() {
       <header className={`topbar ${open ? 'nav-menu-open' : ''}`}>
         <div className="container topbar-inner">
           <Link className="brand" to="/" aria-label="GNM home" onClick={() => setOpen(false)}>
-            <span className="brand-mark">G</span>
+            <img className="brand-logo" src="/logo.png" alt="" width={40} height={40} />
             <span><b>GNM</b><small>Gambia Number Migrator</small></span>
           </Link>
           <nav className="nav-links" aria-label="Primary">
@@ -64,7 +64,7 @@ export function SiteFooter() {
       <div className="container">
         <div className="footer-grid">
           <div>
-            <Link className="brand" to="/"><span className="brand-mark">G</span><span><b>GNM</b><small>Gambia Number Migrator</small></span></Link>
+            <Link className="brand" to="/"><img className="brand-logo" src="/logo.png" alt="" width={40} height={40} /><span><b>GNM</b><small>Gambia Number Migrator</small></span></Link>
             <p className="muted" style={{ marginTop: 12, maxWidth: '30ch' }}>A locally built app supporting The Gambia's national telephone numbering transition.</p>
           </div>
           <div>

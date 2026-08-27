@@ -10,11 +10,11 @@ import { getAppConfig } from '../api/client';
 const ENV_PLAY = import.meta.env.VITE_PLAY_STORE_URL as string | undefined;
 const ENV_APP = import.meta.env.VITE_APP_STORE_URL as string | undefined;
 
-function StoreButton({ url, platform }: { url?: string | null; platform: string }) {
-  const body = <><span aria-hidden="true">{platform === 'Google Play' ? '▶' : ''}</span><div><small>{url ? 'DOWNLOAD ON' : 'COMING SOON ON'}</small><b>{platform}</b></div></>;
+function StoreButton({ url, platform, badge }: { url?: string | null; platform: string; badge: string }) {
+  const img = <img className="store-badge" src={badge} alt={url ? `Download GNM on ${platform}` : ''} width={190} height={56} />;
   return url
-    ? <a className="store linked" href={url} target="_blank" rel="noreferrer">{body}</a>
-    : <div className="store">{body}</div>;
+    ? <a className="store-link" href={url} target="_blank" rel="noreferrer" aria-label={`Download GNM on ${platform}`}>{img}</a>
+    : <span className="store-link is-soon" role="img" aria-label={`${platform} — coming soon`}>{img}<em>Coming soon</em></span>;
 }
 
 /** Store links are set by an administrator in App configuration; env vars are a fallback. */
@@ -201,12 +201,12 @@ export default function Home() {
               <p>Download GNM and update eligible contacts safely, quickly and confidently.</p>
             </div>
             <div className="store-btns">
-              <StoreButton url={store.play} platform="Google Play" />
-              <StoreButton url={store.app} platform="App Store" />
-              <p style={{ fontSize: '.8rem' }}>
-                {store.play || store.app ? 'Tap a badge to install GNM.' : 'Official release links are published here and on the status page.'}
-              </p>
+              <StoreButton url={store.play} platform="Google Play" badge="/badges/google-play.svg" />
+              <StoreButton url={store.app} platform="App Store" badge="/badges/app-store.svg" />
             </div>
+            <p style={{ fontSize: '.8rem', marginTop: 12, opacity: .82 }}>
+              {store.play || store.app ? 'Tap a badge to install GNM.' : 'Official store links are published here as soon as the app is live.'}
+            </p>
           </div>
         </div>
       </section>

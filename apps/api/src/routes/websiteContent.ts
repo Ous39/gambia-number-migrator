@@ -63,8 +63,8 @@ const teamMemberSchema = z.object({
   bio: z.string().trim().min(2).max(1000),
   initials: z.string().trim().min(1).max(4),
   sortOrder: z.coerce.number().int().min(0).max(10000).default(0),
-  photoUrl: optionalUrl,
-  longBio: z.string().trim().max(4000).optional().or(z.literal('').transform(() => undefined)),
+  photoUrl: optionalPhoto,
+  longBio: z.preprocess(emptyToUndefined, z.string().trim().max(4000).optional()),
   portfolioUrl: optionalUrl,
 });
 

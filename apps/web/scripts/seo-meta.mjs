@@ -73,7 +73,9 @@ function build(route, meta) {
 
 let count = 0;
 for (const [route, meta] of Object.entries(ROUTES)) {
-  const out = route === '/' ? join(DIST, 'index.html') : join(DIST, route.replace(/^\//, ''), 'index.html');
+  // Flat files (dist/status.html), not directories (dist/status/index.html),
+  // so nginx serves /status directly without a trailing-slash 301.
+  const out = route === '/' ? join(DIST, 'index.html') : join(DIST, `${route.replace(/^\//, '')}.html`);
   mkdirSync(dirname(out), { recursive: true });
   writeFileSync(out, build(route, meta));
   count += 1;

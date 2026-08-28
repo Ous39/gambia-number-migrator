@@ -9,6 +9,7 @@ export default function PaymentResult({ variant }: { variant: 'success' | 'error
       <Seo
         title={ok ? 'Payment received | GNM' : 'Payment not completed | GNM'}
         description={ok ? 'Your GNM payment was received.' : 'Your GNM payment did not complete.'}
+        noindex
       />
       <section className="section">
         <div className="container doc">

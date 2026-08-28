@@ -59,6 +59,20 @@ export default function Home() {
   return (
     <Page>
       <Seo title="Gambia Number Migrator | Update contacts safely" description="GNM helps individuals, businesses and institutions safely update eligible Gambian contacts from 7 digits to the new 9-digit format." />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'FAQPage',
+            mainEntity: FAQ.map(([q, a]) => ({
+              '@type': 'Question',
+              name: q,
+              acceptedAnswer: { '@type': 'Answer', text: a },
+            })),
+          }),
+        }}
+      />
 
       <section className="hero">
         <div className="container hero-grid">

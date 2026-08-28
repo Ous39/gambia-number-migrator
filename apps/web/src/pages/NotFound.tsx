@@ -5,7 +5,7 @@ import { Page } from '../components/SiteShell';
 export default function NotFound() {
   return (
     <Page>
-      <Seo title="Page not found | Gambia Number Migrator" description="This page could not be found." />
+      <Seo title="Page not found | Gambia Number Migrator" description="This page could not be found." noindex />
       <section className="section">
         <div className="container doc" style={{ textAlign: 'center' }}>
           <span className="eyebrow" style={{ justifyContent: 'center' }}>404</span>

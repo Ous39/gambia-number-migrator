@@ -1,4 +1,5 @@
 User-agent: *
 Allow: /
+Disallow: /payment/
 
 Sitemap: https://gnm.oceanbrown.gm/sitemap.xml

@@ -146,6 +146,13 @@ export default function Settings() {
         <View style={{ marginTop: 12 }}><NoticeCard title="Never share payment PINs" text="Support will never ask for your Wave/APS PIN, OTP, password, or full contact list." tone="warning" icon="shield" /></View>
       </Section>
 
+      <Section title="Organisation access">
+        <Card style={{ gap: 10 }}>
+          <Text style={styles.body}>Have an organisation code from your employer or from OceanBrown? Enter it to unlock the full Contact Migration Pass on this device.</Text>
+          <Button title="Enter organisation code" variant="secondary" tone="blue" icon="card" onPress={() => router.push('/organisation')} />
+        </Card>
+      </Section>
+
       <Section title="Rules & About">
         <Card style={{ gap: 14 }}>
           <InfoRow label="Rule source" value="PURA-guided migration rules" icon="shield" />

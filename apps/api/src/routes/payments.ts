@@ -47,9 +47,33 @@ function lowerCaseHeaders(headers: Record<string, unknown>): Record<string, stri
 
 async function loadPaymentConfig() {
   const rows = (await query(
-    "SELECT config_key,config_value FROM app_config WHERE config_key IN ('subscription_price','currency','wave_payment_enabled','aps_payment_enabled')"
+    "SELECT config_key,config_value FROM app_config WHERE config_key IN ('subscription_price','currency','wave_payment_enabled','aps_payment_enabled','org_pricing')"
   )).rows;
   return Object.fromEntries(rows.map((row) => [row.config_key, row.config_value])) as Record<string, unknown>;
+}
+
+interface OrgQuote { seats: number; amount: number; }
+
+/**
+ * Resolve the server-authoritative total for an organisation purchase. The
+ * client only ever sends a seat count; the price comes from `org_pricing`.
+ * Returns a string error message when the seat count is not purchasable.
+ */
+function quoteOrgSeats(rawSeats: unknown, orgPricing: unknown): OrgQuote | string {
+  const seats = Math.floor(Number(rawSeats));
+  if (!Number.isInteger(seats) || seats < 1) return 'Choose how many devices this organisation code should cover.';
+  const pricing = (orgPricing && typeof orgPricing === 'object' ? orgPricing : {}) as Record<string, any>;
+  const tiers = (pricing.tiers && typeof pricing.tiers === 'object' ? pricing.tiers : {}) as Record<string, unknown>;
+  const customUnit = Number(pricing.custom_unit || 0);
+  const minSeats = Number(pricing.custom_min_seats || 2);
+  const maxSeats = Number(pricing.custom_max_seats || 500);
+  if (seats > maxSeats) return `Organisation codes cover at most ${maxSeats} devices. Contact OceanBrown for a larger plan.`;
+  if (tiers[String(seats)] != null) {
+    const amount = Number(tiers[String(seats)]);
+    if (Number.isFinite(amount) && amount > 0) return { seats, amount };
+  }
+  if (customUnit > 0 && seats >= minSeats) return { seats, amount: customUnit * seats };
+  return 'That organisation size is not available. Choose 5, 10, 15, or a custom size.';
 }
 
 /** Grant paid access to exactly one device. Never creates or unblocks a device. */
@@ -63,6 +87,43 @@ async function unlockDevice(client: PoolClient, deviceId: string) {
      WHERE id = $1`,
     [deviceId]
   );
+}
+
+const ORG_CODE_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+function generateOrgCode() {
+  const bytes = crypto.randomBytes(8);
+  let body = '';
+  for (let i = 0; i < 8; i += 1) body += ORG_CODE_ALPHABET[bytes[i] % 32];
+  return `GNM-${body.slice(0, 4)}-${body.slice(4, 8)}`;
+}
+
+/**
+ * A successful organisation payment mints one multi-seat access code instead of
+ * unlocking the buyer's device. Idempotent: a payment that already has a code
+ * returns the same one, so a replayed webhook never issues a second.
+ */
+async function issueCodeForPayment(client: PoolClient, payment: any): Promise<string> {
+  const existing = await client.query('SELECT code FROM access_codes WHERE payment_id=$1 LIMIT 1', [payment.id]);
+  if (existing.rowCount) return existing.rows[0].code;
+  const meta = (payment.metadata_json || {}) as Record<string, unknown>;
+  const seats = Math.max(1, Math.floor(Number(meta.seats) || 1));
+  let code = '';
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    const candidate = generateOrgCode();
+    const r = await client.query(
+      `INSERT INTO access_codes (code, seats, source, status, label, payment_id, created_by)
+       VALUES ($1,$2,'purchase','active',$3,$4,'system')
+       ON CONFLICT (code) DO NOTHING RETURNING code`,
+      [candidate, seats, `Purchased · ${payment.reference}`, payment.id]
+    );
+    if (r.rowCount) { code = r.rows[0].code; break; }
+  }
+  if (!code) throw Object.assign(new Error('Could not allocate an organisation code'), { status: 500 });
+  await client.query(
+    `UPDATE payments SET provider_metadata_json = COALESCE(provider_metadata_json,'{}'::jsonb) || jsonb_build_object('issued_code', $2::text) WHERE id=$1`,
+    [payment.id, code]
+  );
+  return code;
 }
 
 interface OutcomeInput {
@@ -80,7 +141,7 @@ interface OutcomeInput {
 }
 
 type ApplyResult =
-  | { applied: true; status: string; unlocked: boolean }
+  | { applied: true; status: string; unlocked: boolean; issuedCode?: string | null }
   | { applied: false; reason: 'amount_mismatch' | 'currency_mismatch' | 'reference_mismatch' };
 
 /**
@@ -107,6 +168,7 @@ async function applyOutcome(client: PoolClient, paymentRef: string, input: Outco
   const alreadySuccess = payment.status === 'success';
   let nextStatus = payment.status as string;
   let unlocked = false;
+  let issuedCode: string | null = null;
 
   if (input.outcome === 'completed' && input.paymentStatus === 'succeeded' && input.checkoutStatus === 'complete') {
     nextStatus = 'success';
@@ -148,11 +210,16 @@ async function applyOutcome(client: PoolClient, paymentRef: string, input: Outco
   );
 
   if (!alreadySuccess && updated.rows[0].status === 'success') {
-    await unlockDevice(client, updated.rows[0].device_id);
-    unlocked = true;
+    const meta = (updated.rows[0].metadata_json || {}) as Record<string, unknown>;
+    if (meta.kind === 'org') {
+      issuedCode = await issueCodeForPayment(client, updated.rows[0]);
+    } else {
+      await unlockDevice(client, updated.rows[0].device_id);
+      unlocked = true;
+    }
   }
 
-  return { applied: true, status: updated.rows[0].status, unlocked };
+  return { applied: true, status: updated.rows[0].status, unlocked, issuedCode };
 }
 
 paymentsRouter.post('/payments/create-intent', requireDeviceSecret, async (req, res, next) => {
@@ -167,11 +234,23 @@ paymentsRouter.post('/payments/create-intent', requireDeviceSecret, async (req, 
     if (!providerEnabled) return res.status(403).json({ message: `${provider === 'wave' ? 'Wave' : 'APS'} payments are not currently available.` });
 
     const configuredCurrency = String(paymentConfig.currency || 'GMD').toUpperCase();
-    const requiredAmount = Number(paymentConfig.subscription_price ?? 25);
+
+    // Organisation purchases mint a multi-seat code instead of unlocking the
+    // buyer's device. The seat count comes from the client; the price does not.
+    const meta = (b.metadata || {}) as Record<string, unknown>;
+    const isOrg = meta.kind === 'org';
+    let requiredAmount = Number(paymentConfig.subscription_price ?? 25);
+    if (isOrg) {
+      const quote = quoteOrgSeats(meta.seats, paymentConfig.org_pricing);
+      if (typeof quote === 'string') return res.status(400).json({ message: quote });
+      requiredAmount = quote.amount;
+      meta.seats = quote.seats;
+    }
 
     const device = await query('SELECT status FROM devices WHERE id=$1 LIMIT 1', [b.deviceId]);
     if (!device.rowCount) return res.status(404).json({ message: 'Device not registered' });
-    if (device.rows[0]?.status === 'active') return res.status(409).json({ message: 'This device already has full access. No payment is required.' });
+    // A buyer with their own access can still purchase seats for other people.
+    if (!isOrg && device.rows[0]?.status === 'active') return res.status(409).json({ message: 'This device already has full access. No payment is required.' });
 
     // The server is the sole authority on price and currency. The client value is
     // only accepted when it exactly matches.
@@ -195,7 +274,7 @@ paymentsRouter.post('/payments/create-intent', requireDeviceSecret, async (req, 
       const r = await query(
         `INSERT INTO payments (provider, reference, internal_reference, client_reference, device_id, feature_key, amount, currency, status, checkout_url, metadata_json, otp_hash, otp_expires_at, idempotency_key)
          VALUES ($1,$2,$2,$2,$3,$4,$5,$6,'pending',NULL,$7,$8,$9,$10) RETURNING *`,
-        [provider, ref, b.deviceId, b.featureKey, b.amount, b.currency, JSON.stringify({ ...(b.metadata || {}), customerPhone: b.customerPhone || null, mode: 'test' }), otpHash(ref, testOtp), otpExpiresAt, b.idempotencyKey]
+        [provider, ref, b.deviceId, b.featureKey, b.amount, b.currency, JSON.stringify({ ...meta, customerPhone: b.customerPhone || null, mode: 'test' }), otpHash(ref, testOtp), otpExpiresAt, b.idempotencyKey]
       );
       await query("UPDATE devices SET status=CASE WHEN status='blocked' THEN status ELSE 'pending_payment' END,updated_at=NOW() WHERE id=$1", [b.deviceId]);
       const p = r.rows[0];
@@ -206,7 +285,7 @@ paymentsRouter.post('/payments/create-intent', requireDeviceSecret, async (req, 
     await query(
       `INSERT INTO payments (provider, reference, internal_reference, client_reference, device_id, feature_key, amount, currency, status, metadata_json, idempotency_key)
        VALUES ($1,$2,$2,$2,$3,$4,$5,$6,'creating',$7,$8)`,
-      [provider, ref, b.deviceId, b.featureKey, b.amount, b.currency, JSON.stringify({ ...(b.metadata || {}), mode: 'live' }), b.idempotencyKey]
+      [provider, ref, b.deviceId, b.featureKey, b.amount, b.currency, JSON.stringify({ ...meta, mode: 'live' }), b.idempotencyKey]
     );
 
     try {
@@ -307,6 +386,8 @@ paymentsRouter.get('/payments/:reference/status', requireDeviceSecret, async (re
       }
     }
 
+    const providerMeta = (payment.provider_metadata_json || {}) as Record<string, unknown>;
+    const paymentMeta = (payment.metadata_json || {}) as Record<string, unknown>;
     res.json({
       data: {
         reference: payment.reference,
@@ -316,7 +397,10 @@ paymentsRouter.get('/payments/:reference/status', requireDeviceSecret, async (re
         checkout_status: payment.checkout_status,
         payment_status: payment.payment_status,
         amount: payment.amount,
-        currency: payment.currency
+        currency: payment.currency,
+        kind: paymentMeta.kind === 'org' ? 'org' : 'individual',
+        seats: paymentMeta.kind === 'org' ? Number(paymentMeta.seats) || null : null,
+        issued_code: (providerMeta.issued_code as string) || null
       }
     });
   } catch (e) { next(e); }
@@ -361,14 +445,14 @@ paymentsRouter.post('/payments/webhook/wave', async (req: any, res, next) => {
         `UPDATE payments SET webhook_event_id=$2 WHERE reference=$1`,
         [paymentRow.rows[0].reference, event.id]
       );
-      return { duplicate: false, matched: true, status: applied.status, unlocked: applied.unlocked, reference: paymentRow.rows[0].reference };
+      return { duplicate: false, matched: true, status: applied.status, unlocked: applied.unlocked, issuedCode: applied.issuedCode || null, reference: paymentRow.rows[0].reference };
     });
 
     if (result.matched && !result.duplicate && (result as any).reference) {
       await query(
         `INSERT INTO audit_logs (admin_id, action, entity_type, entity_id, new_value_json)
          VALUES (NULL,'wave_webhook_processed','payment',$1,$2)`,
-        [(result as any).reference, JSON.stringify({ eventId: event.id, eventType: event.eventType, status: result.status, unlocked: (result as any).unlocked || false })]
+        [(result as any).reference, JSON.stringify({ eventId: event.id, eventType: event.eventType, status: result.status, unlocked: (result as any).unlocked || false, issuedCode: (result as any).issuedCode || null })]
       );
     }
     return res.json({ ok: true, ...result });

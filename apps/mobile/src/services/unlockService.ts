@@ -21,7 +21,7 @@ export type AccessStatus = {
   trialContactsUsed: number;
   freeTrialLimit: number;
   remaining: number;
-  accessSource: 'trial' | 'paid' | 'campaign' | 'admin' | 'blocked';
+  accessSource: 'trial' | 'paid' | 'campaign' | 'admin' | 'blocked' | 'code';
   promotional: boolean;
 };
 

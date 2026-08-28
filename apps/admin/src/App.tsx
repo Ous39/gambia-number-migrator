@@ -7,6 +7,7 @@ import Operators from './pages/Operators';
 import Rules from './pages/Rules';
 import Transition from './pages/Transition';
 import Payments from './pages/Payments';
+import AccessCodes from './pages/AccessCodes';
 import AppConfig from './pages/AppConfig';
 import Audit from './pages/Audit';
 import Notifications from './pages/Notifications';
@@ -25,6 +26,7 @@ export default function App() {
       <Route path="/rules" element={<Rules />} />
       <Route path="/transition" element={<Transition />} />
       <Route path="/payments" element={<Payments />} />
+      <Route path="/access-codes" element={<AccessCodes />} />
       <Route path="/notifications" element={<Notifications />} />
       <Route path="/support-devices" element={<SupportDevices />} />
       <Route path="/app-config" element={<AppConfig />} />

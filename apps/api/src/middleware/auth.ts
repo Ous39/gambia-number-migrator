@@ -40,7 +40,7 @@ export function requireRoles(...roles: string[]) {
 const roleAreas: Record<string, string[]> = {
   owner: ['*'], admin: ['*'],
   operations: ['/dashboard','/migration-rules','/transition-settings','/notifications','/operators','/app-config'],
-  finance: ['/dashboard','/payments'], support: ['/dashboard','/devices','/notifications'],
+  finance: ['/dashboard','/payments','/access-codes'], support: ['/dashboard','/devices','/notifications'],
   communications: ['/dashboard','/website-content','/inquiries','/notifications','/uploads'], viewer: ['*'],
 };
 export function requireAdminAreaAccess(req: Request,res: Response,next: NextFunction){

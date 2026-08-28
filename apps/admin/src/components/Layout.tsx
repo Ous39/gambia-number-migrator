@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { Bell, CalendarRange, CreditCard, FileClock, Globe, LayoutDashboard, LifeBuoy, LogOut, Mail, Menu, Moon, Network, RadioTower, Settings, Sun, Users, X, type LucideIcon } from 'lucide-react';
+import { Bell, CalendarRange, CreditCard, FileClock, Globe, LayoutDashboard, LifeBuoy, LogOut, Mail, Menu, Moon, Network, RadioTower, Settings, Sun, Ticket, Users, X, type LucideIcon } from 'lucide-react';
 import { API_BASE_URL, clearToken, getAdmin } from '../api/client';
 
 // Mirrors apps/api/src/middleware/auth.ts `roleAreas` so a role only ever sees
@@ -9,7 +9,7 @@ import { API_BASE_URL, clearToken, getAdmin } from '../api/client';
 export const navAreasByRole: Record<string, string[]> = {
   owner: ['*'], admin: ['*'], viewer: ['*'],
   operations: ['/', '/operators', '/rules', '/transition', '/notifications', '/app-config'],
-  finance: ['/', '/payments'],
+  finance: ['/', '/payments', '/access-codes'],
   support: ['/', '/support-devices', '/notifications'],
   communications: ['/', '/website-content', '/inquiries', '/notifications'],
 };
@@ -41,6 +41,7 @@ export default function Layout() {
     ['/rules', 'Migration Rules', Network],
     ['/transition', 'Transition', CalendarRange],
     ['/payments', 'Payments', CreditCard],
+    ['/access-codes', 'Access Codes', Ticket],
     ['/support-devices', 'Support Devices', LifeBuoy],
     ['/notifications', 'Notifications', Bell],
     ['/website-content', 'Website Content', Globe],

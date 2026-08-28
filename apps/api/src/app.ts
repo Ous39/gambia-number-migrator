@@ -14,6 +14,7 @@ import { migrationRulesRouter } from './routes/migrationRules';
 import { transitionSettingsRouter } from './routes/transitionSettings';
 import { appConfigRouter } from './routes/appConfig';
 import { paymentsRouter } from './routes/payments';
+import { accessCodesRouter } from './routes/accessCodes';
 import { auditLogsRouter } from './routes/auditLogs';
 import { healthRouter } from './routes/health';
 import { dashboardRouter } from './routes/dashboard';
@@ -73,6 +74,14 @@ export function createApp() {
   app.use('/api', transitionSettingsRouter);
   app.use('/api', appConfigRouter);
   app.use('/api', paymentsRouter);
+  app.use('/api/access/redeem', rateLimit({
+    windowMs: 60_000,
+    limit: 20,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    message: { message: 'Too many code attempts. Please wait a minute and try again.' },
+  }));
+  app.use('/api', accessCodesRouter);
   // TODO: Stronger registration abuse protection requires Apple App Attest or Google Play Integrity device attestation.
   app.use('/api/devices/register', rateLimit({
     windowMs: 60_000,

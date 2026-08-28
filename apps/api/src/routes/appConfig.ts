@@ -32,7 +32,7 @@ function providerEnableBlockReason(id: ProviderId, effectiveCurrency: string): s
 
 export const appConfigRouter = Router();
 const configSchema = z.record(z.unknown()).superRefine((value, ctx) => {
-  const allowedKeys = new Set(['subscription_price','currency','free_trial_limit','support_email','support_phone','support_whatsapp','privacy_policy_url','terms_url','play_store_url','app_store_url','social_links','countdown_enabled','countdown_target','countdown_label','free_access_mode','free_access_user_limit','maintenance_mode','minimum_app_version','pricing','announcement_message','rules_about_note','default_feature_unlock_settings','wave_payment_enabled','aps_payment_enabled','cleanup_enabled','cleanup_available_from','cleanup_available_until']);
+  const allowedKeys = new Set(['subscription_price','currency','free_trial_limit','support_email','support_phone','support_whatsapp','privacy_policy_url','terms_url','play_store_url','app_store_url','social_links','countdown_enabled','countdown_target','countdown_label','free_access_mode','free_access_user_limit','maintenance_mode','minimum_app_version','pricing','org_pricing','announcement_message','rules_about_note','default_feature_unlock_settings','wave_payment_enabled','aps_payment_enabled','cleanup_enabled','cleanup_available_from','cleanup_available_until']);
   const SOCIAL_PLATFORMS = ['facebook','instagram','x','linkedin','youtube','tiktok','whatsapp'];
   for (const key of Object.keys(value)) if (!allowedKeys.has(key)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: [key], message: 'Unknown configuration key' });
   if ('subscription_price' in value) {
@@ -51,6 +51,24 @@ const configSchema = z.record(z.unknown()).superRefine((value, ctx) => {
     if (!Number.isInteger(limit) || limit < 0 || limit > 10000) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['free_trial_limit'], message: 'Free trial limit must be between 0 and 10,000' });
   }
   if ('currency' in value && value.currency !== 'GMD') ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['currency'], message: 'Currency must be GMD' });
+  if ('org_pricing' in value) {
+    const p = value.org_pricing as any;
+    if (!p || typeof p !== 'object' || Array.isArray(p) || !p.tiers || typeof p.tiers !== 'object' || Array.isArray(p.tiers)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['org_pricing'], message: 'Organisation pricing must be an object with a "tiers" map' });
+    } else {
+      for (const [seats, price] of Object.entries(p.tiers as Record<string, unknown>)) {
+        if (!/^\d+$/.test(seats) || Number(seats) < 1) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['org_pricing', 'tiers', seats], message: 'Tier seat counts must be positive whole numbers' });
+        const amount = Number(price);
+        if (!Number.isFinite(amount) || amount <= 0 || amount > 1000000) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['org_pricing', 'tiers', seats], message: 'Tier price must be between D1 and D1,000,000' });
+      }
+      for (const k of ['custom_unit', 'custom_min_seats', 'custom_max_seats'] as const) {
+        if (k in p) {
+          const n = Number(p[k]);
+          if (!Number.isFinite(n) || n <= 0) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['org_pricing', k], message: `${k.replace(/_/g, ' ')} must be a positive number` });
+        }
+      }
+    }
+  }
   for (const key of ['privacy_policy_url', 'terms_url', 'play_store_url', 'app_store_url'] as const) {
     const raw = String(value[key] || '');
     if (raw && !/^https:\/\//i.test(raw)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: [key], message: 'Use a full HTTPS URL' });

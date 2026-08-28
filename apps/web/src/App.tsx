@@ -13,6 +13,7 @@ import TeamProfile from './pages/TeamProfile';
 import DataDeletion from './pages/DataDeletion';
 import Refunds from './pages/Refunds';
 import PaymentResult from './pages/PaymentResult';
+import NotFound from './pages/NotFound';
 
 function ScrollManager() {
   const { pathname, hash } = useLocation();
@@ -45,7 +46,7 @@ export default function App() {
         <Route path="/payment/success" element={<PaymentResult variant="success" />} />
         <Route path="/payment/error" element={<PaymentResult variant="error" />} />
         <Route path="/team/:id" element={<TeamProfile />} />
-        <Route path="*" element={<Home />} />
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </>
   );

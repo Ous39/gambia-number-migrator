@@ -12,7 +12,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "gm.oceanbrown.gnm",
-      "buildNumber": "40",
+      "buildNumber": "41",
       "infoPlist": {
         "NSContactsUsageDescription": "GNM scans contacts locally so you can preview and safely update Gambian numbers. Contacts are never uploaded.",
         "ITSAppUsesNonExemptEncryption": false
@@ -29,7 +29,7 @@
         "WRITE_CONTACTS",
         "POST_NOTIFICATIONS"
       ],
-      "versionCode": 41,
+      "versionCode": 42,
       "package": "gm.oceanbrown.gnm"
     },
     "web": {

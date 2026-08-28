@@ -1,36 +1,45 @@
 import { useEffect, useState } from 'react';
 
-// Real GNM app screenshots. Only the first is fetched on page load; the rest are
-// preloaded in the background after mount so the carousel is smooth without
-// blocking first paint. Swap these to .webp once compressed versions exist.
+// Real GNM app screenshots. Each entry prefers a compressed .webp and falls back
+// to the original if the .webp isn't present yet — so dropping webp files into
+// apps/web/public/screens/ needs no code change. Only the first is fetched on
+// page load; the rest preload in the background so the carousel stays smooth.
 const SHOTS = [
-  { src: '/screens/dashboard.png', label: 'Dashboard' },
-  { src: '/screens/scan.png', label: 'Scan complete' },
-  { src: '/screens/preview.jpeg', label: 'Preview changes' }, // demo/placeholder contacts only
-  { src: '/screens/history.png', label: 'History' },
-  { src: '/screens/settings.png', label: 'Privacy & settings' },
+  { webp: '/screens/dashboard.webp', fallback: '/screens/dashboard.png', label: 'Dashboard' },
+  { webp: '/screens/scan.webp', fallback: '/screens/scan.png', label: 'Scan complete' },
+  { webp: '/screens/preview.webp', fallback: '/screens/preview.jpeg', label: 'Preview changes' },
+  { webp: '/screens/history.webp', fallback: '/screens/history.png', label: 'History' },
+  { webp: '/screens/settings.webp', fallback: '/screens/settings.png', label: 'Privacy & settings' },
 ];
+
+function preload(webp: string, fallback: string, done: () => void) {
+  const img = new Image();
+  img.onload = done;
+  img.onerror = () => {
+    const alt = new Image();
+    alt.onload = done;
+    alt.src = fallback;
+  };
+  img.src = webp;
+}
 
 export function AppPreviewPhone() {
   const [index, setIndex] = useState(0);
+  const [srcByIndex, setSrcByIndex] = useState<Record<number, string>>({ 0: SHOTS[0].webp });
   const [ready, setReady] = useState<Set<number>>(new Set([0]));
   const [failed, setFailed] = useState(false);
 
-  // Preload the remaining screenshots a beat after mount (non-blocking).
   useEffect(() => {
     if (failed) return;
     const timer = setTimeout(() => {
       SHOTS.forEach((shot, i) => {
         if (i === 0) return;
-        const img = new Image();
-        img.onload = () => setReady((r) => new Set(r).add(i));
-        img.src = shot.src;
+        preload(shot.webp, shot.fallback, () => setReady((r) => new Set(r).add(i)));
       });
     }, 600);
     return () => clearTimeout(timer);
   }, [failed]);
 
-  // Advance only to screenshots that have finished preloading.
   useEffect(() => {
     if (failed || SHOTS.length < 2) return;
     const timer = setInterval(() => {
@@ -46,6 +55,7 @@ export function AppPreviewPhone() {
   }, [failed, ready]);
 
   const shot = SHOTS[index];
+  const src = srcByIndex[index] ?? shot.webp;
 
   return (
     <div className="phone-showcase" aria-label="GNM app screens">
@@ -58,15 +68,18 @@ export function AppPreviewPhone() {
           </div>
         ) : (
           <img
-            key={shot.src}
+            key={`${index}-${src}`}
             className="phone-shot is-active"
-            src={shot.src}
+            src={src}
             alt={`GNM app — ${shot.label}`}
             width={591}
             height={1280}
             fetchPriority={index === 0 ? 'high' : 'auto'}
             decoding="async"
-            onError={() => setFailed(true)}
+            onError={() => {
+              if (src === shot.webp) setSrcByIndex((m) => ({ ...m, [index]: shot.fallback }));
+              else setFailed(true);
+            }}
           />
         )}
       </div>
@@ -74,7 +87,7 @@ export function AppPreviewPhone() {
         <div className="phone-dots" role="tablist" aria-label="App screen">
           {SHOTS.map((s, i) => (
             <button
-              key={s.src}
+              key={s.fallback}
               type="button"
               role="tab"
               aria-selected={i === index}

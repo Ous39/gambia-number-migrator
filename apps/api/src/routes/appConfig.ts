@@ -32,7 +32,7 @@ function providerEnableBlockReason(id: ProviderId, effectiveCurrency: string): s
 
 export const appConfigRouter = Router();
 const configSchema = z.record(z.unknown()).superRefine((value, ctx) => {
-  const allowedKeys = new Set(['subscription_price','currency','free_trial_limit','support_email','support_phone','support_whatsapp','privacy_policy_url','terms_url','play_store_url','app_store_url','social_links','free_access_mode','free_access_user_limit','maintenance_mode','minimum_app_version','pricing','announcement_message','rules_about_note','default_feature_unlock_settings','wave_payment_enabled','aps_payment_enabled','cleanup_enabled','cleanup_available_from','cleanup_available_until']);
+  const allowedKeys = new Set(['subscription_price','currency','free_trial_limit','support_email','support_phone','support_whatsapp','privacy_policy_url','terms_url','play_store_url','app_store_url','social_links','countdown_enabled','countdown_target','countdown_label','free_access_mode','free_access_user_limit','maintenance_mode','minimum_app_version','pricing','announcement_message','rules_about_note','default_feature_unlock_settings','wave_payment_enabled','aps_payment_enabled','cleanup_enabled','cleanup_available_from','cleanup_available_until']);
   const SOCIAL_PLATFORMS = ['facebook','instagram','x','linkedin','youtube','tiktok','whatsapp'];
   for (const key of Object.keys(value)) if (!allowedKeys.has(key)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: [key], message: 'Unknown configuration key' });
   if ('subscription_price' in value) {
@@ -71,6 +71,12 @@ const configSchema = z.record(z.unknown()).superRefine((value, ctx) => {
       }
     }
   }
+  if ('countdown_enabled' in value && typeof value.countdown_enabled !== 'boolean') ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['countdown_enabled'], message: 'Countdown enabled must be true or false' });
+  if ('countdown_target' in value) {
+    const raw = String(value.countdown_target || '');
+    if (raw && !Number.isFinite(Date.parse(raw))) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['countdown_target'], message: 'Countdown target must be a valid date and time' });
+  }
+  if ('countdown_label' in value && String(value.countdown_label).length > 80) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['countdown_label'], message: 'Countdown label must be 80 characters or fewer' });
   if ('announcement_message' in value && String(value.announcement_message).length > 500) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['announcement_message'], message: 'Announcement must be 500 characters or fewer' });
   if ('rules_about_note' in value && String(value.rules_about_note).length > 500) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['rules_about_note'], message: 'Rules & About note must be 500 characters or fewer' });
   for (const key of ['wave_payment_enabled', 'aps_payment_enabled'] as const) {

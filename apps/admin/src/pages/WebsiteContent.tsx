@@ -1,6 +1,13 @@
 import { ChangeEvent, FormEvent, useEffect, useState } from 'react';
-import { HelpCircle, Link2, Megaphone, Share2, Users } from 'lucide-react';
+import { HelpCircle, Link2, Megaphone, Share2, Timer, Users } from 'lucide-react';
 import { api, resolveAssetUrl, uploadTeamPhoto } from '../api/client';
+
+function toLocalInput(value: unknown) {
+  if (!value) return '';
+  const d = new Date(String(value));
+  if (!Number.isFinite(d.getTime())) return '';
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+}
 
 type Announcement = { id: string; title: string; body: string; status: 'draft' | 'published'; createdAt: string };
 type Faq = { id: string; question: string; answer: string; sortOrder: number; active: boolean };
@@ -36,7 +43,7 @@ export default function WebsiteContent() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
 
-  const [site, setSite] = useState<{ play_store_url: string; app_store_url: string; social_links: Record<string, string> }>({ play_store_url: '', app_store_url: '', social_links: {} });
+  const [site, setSite] = useState<{ play_store_url: string; app_store_url: string; social_links: Record<string, string>; countdown_enabled: boolean; countdown_target: string; countdown_label: string }>({ play_store_url: '', app_store_url: '', social_links: {}, countdown_enabled: false, countdown_target: '', countdown_label: '' });
 
   const load = () => api<{ data: Data }>('/admin/website-content').then((r) => setData(r.data));
   useEffect(() => {
@@ -47,6 +54,9 @@ export default function WebsiteContent() {
         play_store_url: String(c.play_store_url || ''),
         app_store_url: String(c.app_store_url || ''),
         social_links: (c.social_links && typeof c.social_links === 'object' ? c.social_links : {}) as Record<string, string>,
+        countdown_enabled: c.countdown_enabled === true,
+        countdown_target: toLocalInput(c.countdown_target),
+        countdown_label: String(c.countdown_label || ''),
       });
     }).catch(() => undefined);
   }, []);
@@ -58,8 +68,11 @@ export default function WebsiteContent() {
         play_store_url: site.play_store_url.trim(),
         app_store_url: site.app_store_url.trim(),
         social_links: site.social_links,
+        countdown_enabled: site.countdown_enabled,
+        countdown_target: site.countdown_target ? new Date(site.countdown_target).toISOString() : '',
+        countdown_label: site.countdown_label.trim(),
       }) });
-      setMessage('Website links & social media saved.');
+      setMessage('Website settings saved.');
     } catch (err: any) { setMessage(err.message); } finally { setSaving(false); }
   }
 
@@ -178,7 +191,29 @@ export default function WebsiteContent() {
             </div>
           </div>
 
-          <div className="formActions"><button className="btn" disabled={saving}>{saving ? 'Saving…' : 'Save links & social'}</button></div>
+          <div className="card">
+            <div className="cardHeader">
+              <div className="cardIcon"><Timer size={20} aria-hidden="true" /></div>
+              <div><h2>Homepage countdown</h2><p>Show a live countdown in the website hero — e.g. to the start of parallel running. Hides automatically once the target passes.</p></div>
+            </div>
+            <label className="switchCard" style={{ maxWidth: 420 }}>
+              <span><b>Show the countdown</b><small>Appears in the hero on gnm.oceanbrown.gm</small></span>
+              <input type="checkbox" checked={site.countdown_enabled} onChange={(e) => setSite((s) => ({ ...s, countdown_enabled: e.target.checked }))} />
+              <i aria-hidden="true" />
+            </label>
+            <div className="formGrid" style={{ marginTop: 14 }}>
+              <label>Target date &amp; time
+                <input className="input" type="datetime-local" value={site.countdown_target}
+                  onChange={(e) => setSite((s) => ({ ...s, countdown_target: e.target.value }))} />
+              </label>
+              <label>Label
+                <input className="input" type="text" maxLength={80} placeholder="Until PURA Phase 1 begins"
+                  value={site.countdown_label} onChange={(e) => setSite((s) => ({ ...s, countdown_label: e.target.value }))} />
+              </label>
+            </div>
+          </div>
+
+          <div className="formActions"><button className="btn" disabled={saving}>{saving ? 'Saving…' : 'Save website settings'}</button></div>
         </form>
       )}
 

@@ -238,6 +238,30 @@ footer.site .muted { color: rgba(255, 255, 255, 0.6); }
 .hero .link-arrow { color: #8fc4ff; }
 .hero .btn.ghost { border-color: rgba(255, 255, 255, 0.4); color: #ffffff; }
 .hero .btn.ghost:hover { background: rgba(255, 255, 255, 0.12); border-color: #ffffff; color: #ffffff; }
+.countdown { margin-top: var(--space-4); }
+.countdown-label {
+  display: block; font-size: .74rem; font-weight: 800; letter-spacing: .12em;
+  text-transform: uppercase; color: #8fc4ff; margin-bottom: 8px;
+}
+.countdown-units { display: flex; gap: 10px; flex-wrap: wrap; }
+.countdown-unit {
+  min-width: 62px; padding: 10px 8px; border-radius: 12px; text-align: center;
+  background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.16);
+}
+.countdown-unit b {
+  display: block; font-size: 1.5rem; font-weight: 800; line-height: 1; color: #ffffff;
+  font-variant-numeric: tabular-nums;
+}
+.countdown-unit span {
+  display: block; margin-top: 4px; font-size: .66rem; font-weight: 700;
+  letter-spacing: .08em; text-transform: uppercase; color: rgba(255, 255, 255, 0.6);
+}
+/* If the hero ever isn't navy, keep it readable */
+.section:not(.hero) .countdown-label { color: var(--brand); }
+.section:not(.hero) .countdown-unit { background: var(--surface-2); border-color: var(--line); }
+.section:not(.hero) .countdown-unit b { color: var(--ink); }
+.section:not(.hero) .countdown-unit span { color: var(--ink-faint); }
+
 .hero-cta { display: flex; align-items: center; gap: 18px; margin-top: var(--space-4); flex-wrap: wrap; }
 .trust-row { display: flex; gap: 20px; flex-wrap: wrap; margin-top: var(--space-4); font-size: .82rem; color: var(--ink-faint); font-weight: 600; }
 .trust-row span { display: flex; align-items: center; gap: 7px; }

@@ -6,7 +6,7 @@ import { api } from '../api/client';
 type Config = Record<string, unknown>;
 
 // Website-only keys are managed in Website Content, not here.
-const WEB_ONLY_KEYS = ['play_store_url', 'app_store_url', 'social_links'];
+const WEB_ONLY_KEYS = ['play_store_url', 'app_store_url', 'social_links', 'countdown_enabled', 'countdown_target', 'countdown_label'];
 
 const priceFields = [
   ['subscription_price', 'Contact Migration Pass price (GMD)', 'number', '25'],

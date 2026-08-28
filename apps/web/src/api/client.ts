@@ -66,6 +66,7 @@ export type PublicStatus = {
   pricing: { amount: number; currency: string; freeLaunch: boolean; freeMode: string; promotionalPlacesRemaining: number | null };
   payments: { wave: boolean; aps: boolean };
   stores: { android: string | null; ios: string | null };
+  countdown: { enabled: boolean; target: string | null; label: string | null };
   rules: { publishedVersion: number | null; publishedAt: string | null; activeRuleCount: number | null };
   transition: { startDate: string | null; endDate: string | null; showNotice: boolean | null; bannerMessage: string | null };
   announcement: string | null;

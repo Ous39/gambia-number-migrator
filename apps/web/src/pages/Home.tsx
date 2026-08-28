@@ -63,7 +63,7 @@ export default function Home() {
         <div className="container hero-grid">
           <div>
             <span className="eyebrow">Built in The Gambia, for The Gambia</span>
-            <h1>Update every contact.<br /><em>Keep every connection.</em></h1>
+            <h1>Update eligible Gambian contacts safely.<br /><em>Keep every connection.</em></h1>
             <p className="lead">GNM safely updates eligible Gambian phone numbers from 7 digits to the new 9-digit format — without editing contacts one by one.</p>
             <div className="hero-cta">
               <a className="btn" href="#download">Download GNM</a>

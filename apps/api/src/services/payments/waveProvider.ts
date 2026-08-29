@@ -116,6 +116,14 @@ export const waveProvider: PaymentProvider = {
     if (input.currency !== env.waveCurrency) {
       throw new ProviderError(`Currency ${input.currency} is not the Wave-confirmed currency`, { status: 409, code: 'wave_currency_mismatch' });
     }
+    // Wave rejects decimal amounts for XOF and (per onboarding) GMD is expected
+    // to behave the same. Fail loudly here rather than let Wave 400 opaquely.
+    if (!Number.isInteger(input.amount) || !/^\d+$/.test(input.amountString)) {
+      throw new ProviderError(
+        `Wave amount must be a whole number of ${input.currency} (got ${input.amountString})`,
+        { status: 422, code: 'wave_amount_not_integer' }
+      );
+    }
     // Build the body once and sign/send the EXACT same string.
     const payload: Record<string, unknown> = {
       amount: input.amountString,
@@ -139,6 +147,14 @@ export const waveProvider: PaymentProvider = {
 
     const parsed = parseJson(res.text);
     if (!res.ok) {
+      // 401/403 = the Wave account is not authorised for the Checkout API yet.
+      // Surface a distinct code so admin health + logs point at onboarding.
+      if (res.status === 401 || res.status === 403) {
+        throw new ProviderError(
+          'Wave rejected the request: this business account is not authorised for the Checkout API. Contact your Wave partner representative.',
+          { status: 502, code: 'wave_unauthorized' }
+        );
+      }
       const code = String((parsed as any)?.code || `wave_http_${res.status}`);
       throw new ProviderError(`Wave checkout creation failed (${res.status})`, {
         status: res.status === 429 || res.status >= 500 ? 502 : 400,

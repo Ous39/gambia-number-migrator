@@ -48,7 +48,7 @@ credentials and the answers in §4.
 | Error redirect URL | `https://gnm.oceanbrown.gm/payment/error` |
 | Static server egress IP (for API‑key IP allow‑listing) | `<VPS_PUBLIC_IP>` |
 | `client_reference` format we send | `GNM-<unix-ms>-<random>` (≤ 255 chars, unique per attempt) |
-| Amount format | string, e.g. `"25"` |
+| Amount format | string, e.g. `"25"` — our code rejects any non‑integer amount before calling Wave (matching the XOF "no decimal places" rule; adjust if GMD differs) |
 
 **Security summary.** API key, request‑signing secret and webhook signing secret are stored only
 in a git‑ignored `.env.production` file on the VPS; they never reach the mobile app, client code,

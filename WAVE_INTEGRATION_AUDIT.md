@@ -200,7 +200,8 @@ Full detail in `WAVE_ONBOARDING.md` §5.
 
 ## 7. Residual risk / follow-ups
 
-- **GMD support is unconfirmed by Wave.** `WAVE_CURRENCY=GMD` in `.env.example` is an *expected* placeholder; the live path refuses to arm unless it is set and equals the app currency. If Wave only supports XOF for Checkout, GNM cannot price in GMD via Wave without an FX decision — this is a blocking question (`WAVE_ONBOARDING.md` §3).
+- **GMD support — confirmed verbally by Wave (phone), not yet in writing.** `WAVE_CURRENCY=GMD` matches `app_config.currency`. The live path still refuses to arm unless `WAVE_CURRENCY` is set, equals the app currency, and `PAYMENT_PROVIDER_INTEGRATION_READY=true`. Obtain written confirmation alongside the credentials; the whole stack is already GMD-priced (D25) so no code or FX change is needed if it holds.
+- **Decimal handling for GMD `amount`** still unconfirmed — GNM rejects non-integer amounts before calling Wave (safe default, matches the XOF rule). Confirm with Wave; relax only if they say decimals are allowed.
 - **`restrict_payer_mobile` for GMD** unverified — left opt-in and off.
 - **Reconciliation on outbound timeout**: if `createCheckout` times out we may not have a session id, so the status endpoint cannot reconcile that specific attempt. Mitigation: the record is left `pending` with the error; the user retries (idempotency-keyed). A future enhancement is `GET /v1/checkout/sessions/search?client_reference=` lookup.
 - **Mobile deep-link return**: current flow relies on polling + "check now" + focus refresh rather than an app deep link from Wave's `success_url`. Adequate; a registered scheme redirect is a later polish.

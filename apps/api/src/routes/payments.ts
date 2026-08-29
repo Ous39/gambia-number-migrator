@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { Router } from 'express';
 import type { PoolClient } from 'pg';
-import { paymentIntentSchema, paymentOtpSchema } from '@gnm/shared';
+import { paymentIntentSchema } from '@gnm/shared';
 import { env } from '../config/env';
 import { query, withTransaction } from '../db/pool';
 import { requireAdmin } from '../middleware/auth';
@@ -24,10 +24,6 @@ const RECONCILE_AFTER_MS = 15_000;
 
 function createReference() {
   return `GNM-${Date.now()}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
-}
-
-function otpHash(reference: string, otp: string) {
-  return crypto.createHmac('sha256', env.jwtSecret).update(`${reference}:${otp}`).digest('hex');
 }
 
 function toE164Gambia(localDigits?: string | null) {
@@ -230,7 +226,9 @@ paymentsRouter.post('/payments/create-intent', requireDeviceSecret, async (req, 
     const b = paymentIntentSchema.parse(req.body);
     const provider = b.provider as ProviderId;
     const paymentConfig = await loadPaymentConfig();
-    const providerEnabled = paymentConfig[`${provider}_payment_enabled`] === true;
+    // Test mode exercises the full checkout flow against a local simulator, so it
+    // does not require the wallet to be switched on in Admin.
+    const providerEnabled = env.paymentTestMode || paymentConfig[`${provider}_payment_enabled`] === true;
     if (!providerEnabled) return res.status(403).json({ message: `${provider === 'wave' ? 'Wave' : 'APS'} payments are not currently available.` });
 
     const configuredCurrency = String(paymentConfig.currency || 'GMD').toUpperCase();
@@ -261,44 +259,44 @@ paymentsRouter.post('/payments/create-intent', requireDeviceSecret, async (req, 
     const existing = await query('SELECT * FROM payments WHERE device_id=$1 AND idempotency_key=$2 LIMIT 1', [b.deviceId, b.idempotencyKey]);
     if (existing.rowCount) {
       const p = existing.rows[0];
-      return res.json({ data: { reference: p.reference, provider: p.provider, amount: p.amount, currency: p.currency, status: p.status, checkoutUrl: p.checkout_url || null, testOtp: null } });
+      return res.json({ data: { reference: p.reference, provider: p.provider, amount: p.amount, currency: p.currency, status: p.status, checkoutUrl: p.checkout_url || null } });
     }
 
     const ref = createReference();
+    const mode = env.paymentTestMode ? 'test' : 'live';
 
-    // --- Test mode: no provider call. Locally generated OTP unlocks the device.
-    // This path is impossible in production (env.ts throws if PAYMENT_TEST_MODE).
-    if (env.paymentTestMode) {
-      const testOtp = String(crypto.randomInt(1000, 10000));
-      const otpExpiresAt = new Date(Date.now() + 5 * 60 * 1000);
-      const r = await query(
-        `INSERT INTO payments (provider, reference, internal_reference, client_reference, device_id, feature_key, amount, currency, status, checkout_url, metadata_json, otp_hash, otp_expires_at, idempotency_key)
-         VALUES ($1,$2,$2,$2,$3,$4,$5,$6,'pending',NULL,$7,$8,$9,$10) RETURNING *`,
-        [provider, ref, b.deviceId, b.featureKey, b.amount, b.currency, JSON.stringify({ ...meta, customerPhone: b.customerPhone || null, mode: 'test' }), otpHash(ref, testOtp), otpExpiresAt, b.idempotencyKey]
-      );
-      await query("UPDATE devices SET status=CASE WHEN status='blocked' THEN status ELSE 'pending_payment' END,updated_at=NOW() WHERE id=$1", [b.deviceId]);
-      const p = r.rows[0];
-      return res.status(201).json({ data: { reference: p.reference, provider: p.provider, amount: p.amount, currency: p.currency, status: p.status, checkoutUrl: null, testOtp } });
-    }
-
-    // --- Live mode: create a provider checkout session.
     await query(
       `INSERT INTO payments (provider, reference, internal_reference, client_reference, device_id, feature_key, amount, currency, status, metadata_json, idempotency_key)
        VALUES ($1,$2,$2,$2,$3,$4,$5,$6,'creating',$7,$8)`,
-      [provider, ref, b.deviceId, b.featureKey, b.amount, b.currency, JSON.stringify({ ...meta, mode: 'live' }), b.idempotencyKey]
+      [provider, ref, b.deviceId, b.featureKey, b.amount, b.currency, JSON.stringify({ ...meta, mode }), b.idempotencyKey]
     );
 
     try {
-      const restrictPayerMobile = env.waveEnablePayerRestriction ? toE164Gambia(b.customerPhone) : undefined;
-      const checkout = await getProvider(provider).createCheckout({
-        reference: ref,
-        amount: b.amount,
-        amountString: String(b.amount),
-        currency: String(b.currency).toUpperCase(),
-        successUrl: env.waveSuccessUrl,
-        errorUrl: env.waveErrorUrl,
-        restrictPayerMobile
-      });
+      // Test mode takes the identical flow but skips the outbound provider call;
+      // the checkout URL is a local simulator page that stands in for the
+      // provider's hosted page. Impossible in production (env.ts throws on boot).
+      let checkout: { providerSessionId: string; checkoutUrl: string; checkoutStatus: string; paymentStatus: string; rawSafe: Record<string, unknown> };
+      if (env.paymentTestMode) {
+        const base = (env.publicApiBaseUrl || `${req.protocol}://${req.get('host')}/api`).replace(/\/+$/, '');
+        checkout = {
+          providerSessionId: `cos-sim-${ref}`,
+          checkoutUrl: `${base}/payments/simulate/${ref}`,
+          checkoutStatus: 'open',
+          paymentStatus: 'processing',
+          rawSafe: { simulated: true }
+        };
+      } else {
+        const restrictPayerMobile = env.waveEnablePayerRestriction ? toE164Gambia(b.customerPhone) : undefined;
+        checkout = await getProvider(provider).createCheckout({
+          reference: ref,
+          amount: b.amount,
+          amountString: String(b.amount),
+          currency: String(b.currency).toUpperCase(),
+          successUrl: env.waveSuccessUrl,
+          errorUrl: env.waveErrorUrl,
+          restrictPayerMobile
+        });
+      }
       const r = await query(
         `UPDATE payments SET
            status='pending',
@@ -313,7 +311,7 @@ paymentsRouter.post('/payments/create-intent', requireDeviceSecret, async (req, 
       );
       await query("UPDATE devices SET status=CASE WHEN status='blocked' THEN status ELSE 'pending_payment' END,updated_at=NOW() WHERE id=$1", [b.deviceId]);
       const p = r.rows[0];
-      return res.status(201).json({ data: { reference: p.reference, provider: p.provider, amount: p.amount, currency: p.currency, status: p.status, checkoutUrl: p.checkout_url || null, testOtp: null } });
+      return res.status(201).json({ data: { reference: p.reference, provider: p.provider, amount: p.amount, currency: p.currency, status: p.status, checkoutUrl: p.checkout_url || null } });
     } catch (error) {
       const providerError = error instanceof ProviderError ? error : null;
       await query(
@@ -331,27 +329,71 @@ paymentsRouter.post('/payments/create-intent', requireDeviceSecret, async (req, 
   } catch (e) { next(e); }
 });
 
-paymentsRouter.post('/payments/verify-otp', requireDeviceSecret, async (req, res, next) => {
+// --- Test-mode simulator: stands in for the provider's hosted checkout page so
+// the app flow is byte-identical in testing and production. Disabled outside
+// test mode (env.ts refuses to boot with PAYMENT_TEST_MODE in production).
+function escapeHtml(value: string) {
+  return String(value).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
+}
+
+function simulatePage(p: any) {
+  const ref = escapeHtml(p.reference);
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Test checkout</title>
+<style>body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#0e2946;color:#fff;margin:0;display:grid;place-items:center;min-height:100vh}
+.c{background:#12324f;border:1px solid #21456a;border-radius:16px;padding:28px;max-width:360px;width:calc(100% - 32px);text-align:center}
+h1{font-size:1.15rem;margin:0 0 6px}.m{opacity:.8;font-size:.9rem;margin:0 0 20px}.a{font-size:2rem;font-weight:800;margin:8px 0 22px}
+button{width:100%;min-height:52px;border:0;border-radius:12px;font-size:1rem;font-weight:700;cursor:pointer;margin-top:10px}
+.ok{background:#0a7d52;color:#fff}.no{background:transparent;color:#9fc4e8;border:1px solid #21456a}
+code{opacity:.65;font-size:.75rem;word-break:break-all}</style></head>
+<body><div class="c"><h1>Test checkout</h1><p class="m">Simulator — stands in for the Wave hosted page. No money moves.</p>
+<div class="a">D${escapeHtml(String(p.amount))} ${escapeHtml(String(p.currency || 'GMD'))}</div>
+<form method="post"><button class="ok" name="outcome" value="completed">Approve payment</button>
+<button class="no" name="outcome" value="failed">Decline</button></form>
+<p style="margin-top:18px"><code>${ref}</code></p></div></body></html>`;
+}
+
+function simulateDonePage(outcome: string) {
+  const ok = outcome === 'completed';
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Done</title>
+<style>body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#0e2946;color:#fff;margin:0;display:grid;place-items:center;min-height:100vh;text-align:center}
+.c{max-width:340px;padding:24px}h1{font-size:1.1rem}p{opacity:.8}</style></head>
+<body><div class="c"><h1>${ok ? 'Payment approved' : 'Payment declined'}</h1>
+<p>Return to the GNM app — it will ${ok ? 'unlock automatically' : 'let you try again'} within a few seconds.</p></div></body></html>`;
+}
+
+paymentsRouter.get('/payments/simulate/:reference', async (req, res, next) => {
   try {
-    if (!env.paymentTestMode) return res.status(404).json({ message: 'Test OTP verification is disabled' });
-    const b = paymentOtpSchema.parse(req.body);
-    const r = await query('SELECT * FROM payments WHERE reference=$1 AND device_id=$2', [b.reference, b.deviceId]);
-    const payment = r.rows[0];
-    if (!payment) return res.status(404).json({ message: 'Payment not found' });
-    if (payment.status === 'success') return res.json({ data: { reference: payment.reference, status: payment.status } });
-    if (payment.otp_attempts >= 5) return res.status(429).json({ message: 'Too many OTP attempts. Start a new payment.' });
-    const suppliedHash = otpHash(payment.reference, b.otp);
-    const confirmed = await query(
-      `UPDATE payments SET status='success',otp_attempts=otp_attempts+1,paid_at=NOW(),external_reference=$2,payment_status='succeeded',checkout_status='complete',updated_at=NOW()
-       WHERE reference=$1 AND status IN ('pending','creating') AND otp_attempts<5 AND otp_expires_at>NOW() AND otp_hash=$3 RETURNING *`,
-      [payment.reference, `TEST-${payment.reference}`, suppliedHash]
-    );
-    if (!confirmed.rowCount) {
-      await query("UPDATE payments SET otp_attempts=otp_attempts+1,updated_at=NOW() WHERE reference=$1 AND status IN ('pending','creating') AND otp_attempts<5", [payment.reference]);
-      return res.status(400).json({ message: 'The OTP is invalid or has expired' });
+    if (!env.paymentTestMode) return res.status(404).type('text/plain').send('Not found');
+    const r = await query('SELECT reference, amount, currency, status FROM payments WHERE reference=$1', [req.params.reference]);
+    if (!r.rowCount) return res.status(404).type('text/plain').send('Payment not found');
+    res.type('html').send(simulatePage(r.rows[0]));
+  } catch (e) { next(e); }
+});
+
+paymentsRouter.post('/payments/simulate/:reference', async (req, res, next) => {
+  try {
+    if (!env.paymentTestMode) return res.status(404).json({ message: 'Not found' });
+    const decision = String((req.body && req.body.outcome) || req.query.outcome || 'completed');
+    const outcome: NormalizedOutcome = decision === 'failed' ? 'failed' : 'completed';
+    const found = await query('SELECT reference FROM payments WHERE reference=$1', [req.params.reference]);
+    if (!found.rowCount) return res.status(404).json({ message: 'Payment not found' });
+    const reference = found.rows[0].reference as string;
+    const applied = await withTransaction((client) => applyOutcome(client, reference, {
+      outcome,
+      paymentStatus: outcome === 'completed' ? 'succeeded' : 'cancelled',
+      checkoutStatus: outcome === 'completed' ? 'complete' : 'expired',
+      providerTransactionId: `SIM-${reference}`,
+      providerSessionId: `cos-sim-${reference}`,
+      amount: null,
+      currency: null,
+      clientReference: reference,
+      errorCode: outcome === 'failed' ? 'simulated_decline' : null,
+      errorMessage: outcome === 'failed' ? 'Payment declined in the test simulator' : null
+    }));
+    if (String(req.headers.accept || '').includes('text/html')) {
+      return res.type('html').send(simulateDonePage(outcome));
     }
-    await withTransaction((client) => unlockDevice(client, confirmed.rows[0].device_id));
-    res.json({ data: { reference: confirmed.rows[0].reference, status: 'success' } });
+    res.json({ data: applied });
   } catch (e) { next(e); }
 });
 

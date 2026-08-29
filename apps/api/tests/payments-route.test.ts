@@ -75,6 +75,9 @@ function fakeQuery(text: string, params: any[] = []): Promise<any> {
     state.seenEvents.add(id);
     return Promise.resolve({ rowCount: 1, rows: [{ id: 'evt-row' }] });
   }
+  if (/SELECT reference, amount, currency, status FROM payments WHERE reference=\$1/.test(sql)) {
+    return Promise.resolve({ rowCount: state.payment ? 1 : 0, rows: state.payment ? [state.payment] : [] });
+  }
   if (/SELECT reference FROM payments WHERE/.test(sql) || /SELECT reference FROM payments WHERE id=/.test(sql)) {
     return Promise.resolve({ rowCount: state.payment ? 1 : 0, rows: state.payment ? [{ reference: state.payment.reference }] : [] });
   }
@@ -167,12 +170,54 @@ describe('POST /payments/create-intent', () => {
     expect(providerMock.createCheckout).toHaveBeenCalledOnce();
   });
 
-  it('test mode issues a local OTP and never calls the provider', async () => {
+  it('test mode returns a simulator checkout url and never calls the provider', async () => {
     envMock.paymentTestMode = true;
     const res = await request(makeApp()).post('/api/payments/create-intent').send(baseIntent);
     expect(res.status).toBe(201);
-    expect(res.body.data.testOtp).toMatch(/^\d{4}$/);
+    expect(res.body.data.checkoutUrl).toContain('/payments/simulate/');
+    expect(res.body.data.testOtp).toBeUndefined();
     expect(providerMock.createCheckout).not.toHaveBeenCalled();
+  });
+
+  it('test mode works with the wallet toggle off', async () => {
+    envMock.paymentTestMode = true;
+    state.config.wave_payment_enabled = false;
+    const res = await request(makeApp()).post('/api/payments/create-intent').send(baseIntent);
+    expect(res.status).toBe(201);
+  });
+});
+
+describe('GET/POST /payments/simulate/:reference', () => {
+  function seed() {
+    state.payment = {
+      id: 'pay-1', provider: 'wave', reference: 'GNM-SIM-1', device_id: 'device-abcdef12',
+      feature_key: 'bulk_unlock', amount: 25, currency: 'GMD', status: 'pending',
+      wave_checkout_session_id: 'cos-sim-GNM-SIM-1', metadata_json: {}, provider_metadata_json: {},
+      updated_at: new Date().toISOString(), otp_attempts: 0
+    };
+  }
+
+  it('serves an approve/decline page in test mode', async () => {
+    envMock.paymentTestMode = true;
+    seed();
+    const res = await request(makeApp()).get('/api/payments/simulate/GNM-SIM-1');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Approve payment');
+  });
+
+  it('approving unlocks the device', async () => {
+    envMock.paymentTestMode = true;
+    seed();
+    const res = await request(makeApp()).post('/api/payments/simulate/GNM-SIM-1').send({ outcome: 'completed' });
+    expect(res.status).toBe(200);
+    expect(state.payment.status).toBe('success');
+    expect(state.device.status).toBe('active');
+  });
+
+  it('is 404 outside test mode', async () => {
+    envMock.paymentTestMode = false;
+    const res = await request(makeApp()).get('/api/payments/simulate/GNM-SIM-1');
+    expect(res.status).toBe(404);
   });
 });
 

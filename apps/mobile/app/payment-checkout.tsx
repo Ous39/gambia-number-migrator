@@ -4,16 +4,17 @@ import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback } from 'react';
 import { Button } from '../src/components/Button';
 import { BackHeader, Card, NoticeCard, Pill, Screen, Section, useAppDialog } from '../src/components/UI';
-import { createPaymentIntent, getLiveConfig, getPaymentStatus, verifyPaymentOtp } from '../src/services/api';
+import { createPaymentIntent, getLiveConfig, getPaymentStatus } from '../src/services/api';
 import { getDeviceFingerprint } from '../src/services/deviceService';
 import { getAccessStatus, markFeatureUnlocked, PREMIUM_FEATURES, type AccessStatus } from '../src/services/unlockService';
 import { getTone, radius, type Tone, useAppTheme } from '../src/appTheme';
 import { AppIcon } from '../src/components/AppIcon';
 
 type Provider = 'wave' | 'aps';
-// 'processing' = the Wave app/browser is open and we are polling our own backend
-// for a provider-confirmed unlock. GNM never sees the customer's Wave PIN/OTP.
-type Step = 'phone' | 'otp' | 'processing' | 'success';
+// 'processing' = the provider's hosted page is open in the system browser and we
+// are polling our own backend for a provider-confirmed unlock. The same flow
+// runs in test mode against a local simulator page. GNM never sees a PIN or OTP.
+type Step = 'phone' | 'processing' | 'success';
 
 const providerMeta: Record<Provider, { title: string; tone: Tone; icon: string; help: string; note: string }> = {
   wave: {
@@ -64,8 +65,6 @@ export default function PaymentCheckout() {
   const tone = getTone(colors, meta.tone);
   const [phone, setPhone] = useState('');
   const [inputNote, setInputNote] = useState('');
-  const [otp, setOtp] = useState('');
-  const [sentOtp, setSentOtp] = useState('');
   const [step, setStep] = useState<Step>('phone');
   const [busy, setBusy] = useState(false);
   const [reference, setReference] = useState('');
@@ -73,7 +72,6 @@ export default function PaymentCheckout() {
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const paymentAttemptId = useRef('');
   const canPay = validPhone(phone);
-  const canConfirm = otp.length === 4;
 
   function handlePhoneChange(value: string) {
     const digitsOnly = value.replace(/\D/g, '');
@@ -85,8 +83,6 @@ export default function PaymentCheckout() {
   }
 
   useEffect(() => {
-    setOtp('');
-    setSentOtp('');
     setStep('phone');
   }, [provider]);
 
@@ -118,7 +114,7 @@ export default function PaymentCheckout() {
     };
   }, []);
 
-  async function sendOtp() {
+  async function startPayment() {
     if (priceLoading) return;
     if (!approvedProviders.includes(provider)) {
       showDialog({ title: 'Payment option unavailable', message: 'This wallet has not been enabled by GNM. Choose an approved payment option or try again later.', tone: 'warning', icon: 'shield' });
@@ -137,39 +133,19 @@ export default function PaymentCheckout() {
       if (!paymentAttemptId.current) paymentAttemptId.current = `mobile_${Date.now()}_${Math.random().toString(36).slice(2, 14)}`;
       const intent = await createPaymentIntent({ provider, deviceId: fp, featureKey: PREMIUM_FEATURES.bulkUnlock, amount, currency: 'GMD', customerPhone: phone, idempotencyKey: paymentAttemptId.current, metadata: { source: 'mobile-checkout' } });
       setReference(intent.reference);
-      setSentOtp(intent.testOtp || '');
-      setOtp('');
-      // Live provider checkout: open the provider-hosted page in the SYSTEM
-      // browser (never an embedded WebView) and poll our own backend for the
-      // provider-confirmed result.
+      // Open the provider-hosted checkout page in the SYSTEM browser (never an
+      // embedded WebView) and poll our own backend for the confirmed result.
+      // In test mode the URL is a local simulator page; the flow is identical.
+      // Access is never granted from the redirect alone.
       if (intent.checkoutUrl) {
         try { await Linking.openURL(intent.checkoutUrl); }
         catch { showDialog({ title: `Could not open ${meta.title}`, message: `We could not open ${meta.title}. Reopen this screen to try again — you have not been charged.`, tone: 'danger', icon: 'warning' }); }
-        setStep('processing');
-        return;
-      }
-      if (!intent.testOtp) {
+      } else {
         showDialog({ title: 'Payment pending', message: `Your ${meta.title} payment request was created. Complete it with ${meta.title}, then return here — access unlocks automatically once it is confirmed.`, tone: meta.tone, icon: meta.icon });
-        setStep('processing');
-        return;
       }
-      setStep('otp');
-      showDialog({ title: 'Test payment code', message: `Development test code: ${intent.testOtp}`, tone: meta.tone, icon: meta.icon, actions: [{ text: 'Enter code', tone: meta.tone }] });
+      setStep('processing');
     } catch (error: any) {
       showDialog({ title: 'Could not start payment', message: error?.message || 'The payment service is unavailable. No payment was made.', tone: 'danger', icon: 'warning' });
-    } finally { setBusy(false); }
-  }
-
-  async function confirmPayment() {
-    setBusy(true);
-    try {
-      const deviceId = await getDeviceFingerprint();
-      const result = await verifyPaymentOtp(reference, otp, deviceId);
-      if (result.status !== 'success') throw new Error('Payment has not been confirmed');
-      await markFeatureUnlocked(PREMIUM_FEATURES.bulkUnlock, reference);
-      setStep('success');
-    } catch (error: any) {
-      showDialog({ title: 'Payment not confirmed', message: error?.message || 'The OTP is invalid or expired.', tone: 'danger', icon: 'warning' });
     } finally { setBusy(false); }
   }
 
@@ -278,10 +254,9 @@ export default function PaymentCheckout() {
       )}
 
       {step !== 'success' ? (
-        <Section title={step === 'phone' ? undefined : 'Confirm payment OTP'} style={{ marginTop: step === 'phone' ? 0 : 12 }}>
-          <Card elevated style={{ gap: step === 'phone' ? 12 : 16, padding: step === 'phone' ? 14 : 18, borderRadius: 28 }}>
-            {step === 'phone' ? (
-              <View>
+        <Section style={{ marginTop: 0 }}>
+          <Card elevated style={{ gap: 12, padding: 14, borderRadius: 28 }}>
+            <View>
                 <Text style={{ color: colors.text, fontSize: 16, fontWeight: '900', marginBottom: 10 }}>Choose payment provider</Text>
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   {approvedProviders.map((item) => {
@@ -317,15 +292,8 @@ export default function PaymentCheckout() {
                   })}
                 </View>
               </View>
-            ) : <View style={[styles.rowBetween, { gap: 12, alignItems: 'flex-start' }]}> 
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={{ color: colors.text, fontSize: 19, lineHeight: 25, fontWeight: '900' }}>Verify your payment</Text>
-                <Text style={[styles.body, { marginTop: 4 }]}>Enter the 4-digit code sent for +220 {maskedPhone}.</Text>
-              </View>
-              <Pill text={`D${amount}`} tone={meta.tone} />
-            </View>}
 
-            {step === 'phone' ? <View>
+            <View>
               <View style={[styles.rowBetween, { gap: 10 }]}>
                 <Text style={styles.label}>Payment phone number</Text>
                 <Text style={{ color: colors.softText, fontSize: 12, fontWeight: '800' }}>Gambia +220</Text>
@@ -360,7 +328,7 @@ export default function PaymentCheckout() {
                     textContentType="telephoneNumber"
                     editable={step === 'phone'}
                     returnKeyType="done"
-                    onSubmitEditing={() => canPay ? sendOtp() : Keyboard.dismiss()}
+                    onSubmitEditing={() => canPay ? startPayment() : Keyboard.dismiss()}
                     selectionColor={tone.fg}
                     style={{ flex: 1, minWidth: 0, minHeight: 56, paddingHorizontal: 4, color: colors.text, fontSize: 17, fontWeight: '800', opacity: step === 'phone' ? 1 : 0.72 }}
                   />
@@ -371,50 +339,22 @@ export default function PaymentCheckout() {
                   </TouchableOpacity>
                 </View>
               </View>
-              <View style={[styles.rowBetween, { marginTop: 6, gap: 10 }]}> 
+              <View style={[styles.rowBetween, { marginTop: 6, gap: 10 }]}>
                 <Text numberOfLines={1} style={[styles.small, { flex: 1, color: canPay && !inputNote ? colors.success : colors.warning }]}>{phoneMessage}</Text>
                 <Text style={{ color: colors.softText, fontSize: 12, fontWeight: '900' }}>{validPhone(phone) ? 'Ready' : `${phone.length} digits`}</Text>
               </View>
-            </View> : null}
+            </View>
 
-            {step === 'otp' ? (
-              <View style={{ alignItems: 'center' }}>
-                <View style={{ width: 72, height: 72, borderRadius: 26, backgroundColor: tone.bg, borderWidth: 1, borderColor: tone.border, alignItems: 'center', justifyContent: 'center', marginBottom: 14 }}><AppIcon name="shield" color={tone.fg} size={30} /></View>
-                <Text style={{ color: colors.text, fontSize: 22, fontWeight: '900', textAlign: 'center' }}>Enter verification code</Text>
-                <Text style={[styles.body, { textAlign: 'center', marginTop: 5, marginBottom: 16 }]}>We sent a 4-digit code to +220 {maskedPhone}</Text>
-                <TextInput
-                  accessibilityLabel="Four digit payment verification code"
-                  value={otp}
-                  onChangeText={(v) => setOtp(v.replace(/\D/g, '').slice(0, 4))}
-                  placeholder="0000"
-                  placeholderTextColor={colors.softText}
-                  keyboardType="number-pad"
-                  maxLength={4}
-                  autoFocus
-                  style={[styles.input, { width: '100%', textAlign: 'center', fontSize: 30, letterSpacing: 14, fontWeight: '900', minHeight: 70, borderRadius: 22, borderColor: otp.length === 4 ? colors.success : tone.border }]}
-                />
-                {sentOtp ? <View style={{ width: '100%', marginTop: 12, padding: 12, borderRadius: 16, backgroundColor: colors.warningSoft, borderWidth: 1, borderColor: colors.warning }}><Text style={{ color: colors.warning, fontWeight: '900', textAlign: 'center' }}>LOCAL TEST CODE · {sentOtp}</Text><TouchableOpacity accessibilityRole="button" accessibilityLabel="Use local test code" onPress={() => setOtp(sentOtp)} style={{ marginTop: 8, minHeight: 44, justifyContent: 'center' }}><Text style={{ color: colors.primary, fontWeight: '900', textAlign: 'center' }}>Use test code</Text></TouchableOpacity></View> : null}
-                <TouchableOpacity accessibilityRole="button" accessibilityLabel="Resend verification code" activeOpacity={0.82} disabled={busy} onPress={sendOtp} style={{ marginTop: 12, padding: 8, minHeight: 44, justifyContent: 'center' }}><Text style={{ color: tone.fg, fontWeight: '900' }}>Didn’t receive it? Resend code</Text></TouchableOpacity>
-              </View>
-            ) : null}
-
-            {step === 'phone' ? (
-              <Button
-                title={priceLoading ? 'Checking live price…' : `Pay D${amount}`}
-                icon="right"
-                disabled={!canPay || priceLoading}
-                loading={busy}
-                onPress={sendOtp}
-                style={{ minHeight: 56, borderRadius: 18, backgroundColor: canPay && !priceLoading ? colors.primary : colors.surface3, borderColor: canPay && !priceLoading ? colors.primary : colors.border, shadowOpacity: canPay && !priceLoading ? (colors.isDark ? 0.32 : 0.18) : 0, elevation: canPay && !priceLoading ? 6 : 0 }}
-              />
-            ) : (
-              <View style={{ gap: 10 }}>
-                <Button title={`Verify payment · D${amount}`} icon="check" loading={busy} disabled={!canConfirm || busy} onPress={confirmPayment} style={{ minHeight: 60, borderRadius: 22 }} />
-                <Button title="Use a different number" variant="secondary" tone={meta.tone} icon="phone" disabled={busy} onPress={() => { setStep('phone'); setOtp(''); setSentOtp(''); }} />
-              </View>
-            )}
+            <Button
+              title={priceLoading ? 'Checking live price…' : `Pay D${amount}`}
+              icon="right"
+              disabled={!canPay || priceLoading}
+              loading={busy}
+              onPress={startPayment}
+              style={{ minHeight: 56, borderRadius: 18, backgroundColor: canPay && !priceLoading ? colors.primary : colors.surface3, borderColor: canPay && !priceLoading ? colors.primary : colors.border, shadowOpacity: canPay && !priceLoading ? (colors.isDark ? 0.32 : 0.18) : 0, elevation: canPay && !priceLoading ? 6 : 0 }}
+            />
           </Card>
-          {step === 'phone' ? <Text style={{ color: colors.softText, fontSize: 12, fontWeight: '700', textAlign: 'center', marginTop: 8 }}>Secure payment · Contacts stay private</Text> : null}
+          <Text style={{ color: colors.softText, fontSize: 12, fontWeight: '700', textAlign: 'center', marginTop: 8 }}>Secure payment · Contacts stay private</Text>
         </Section>
       ) : (
         <Section title="Payment receipt" style={{ marginTop: 16 }}>
@@ -438,7 +378,6 @@ export default function PaymentCheckout() {
         </Section>
       )}
 
-      {step !== 'success' && sentOtp ? <NoticeCard title="Development payment mode" text="This build is using the safe test OTP supplied by the API. No live charge is made in test mode." tone="blue" icon="shield" /> : null}
       <Dialog />
     </Screen>
     </KeyboardAvoidingView>

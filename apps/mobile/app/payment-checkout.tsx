@@ -7,7 +7,7 @@ import { BackHeader, Card, NoticeCard, Pill, Screen, Section, useAppDialog } fro
 import { createPaymentIntent, getLiveConfig, getPaymentStatus } from '../src/services/api';
 import { getDeviceFingerprint } from '../src/services/deviceService';
 import { getAccessStatus, markFeatureUnlocked, PREMIUM_FEATURES, type AccessStatus } from '../src/services/unlockService';
-import { getTone, radius, type Tone, useAppTheme } from '../src/appTheme';
+import { getTone, type Tone, useAppTheme } from '../src/appTheme';
 import { AppIcon } from '../src/components/AppIcon';
 
 type Provider = 'wave' | 'aps';

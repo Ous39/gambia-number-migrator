@@ -355,6 +355,9 @@ export default function PaymentCheckout() {
             />
           </Card>
           <Text style={{ color: colors.softText, fontSize: 12, fontWeight: '700', textAlign: 'center', marginTop: 8 }}>Secure payment · Contacts stay private</Text>
+          <View style={{ marginTop: 12 }}>
+            <NoticeCard title="Made in The Gambia" text="OceanBrown is a young Gambian team. Your D25 helps fund the next tool we build for The Gambia — thank you for supporting local software." tone="blue" icon="info" />
+          </View>
         </Section>
       ) : (
         <Section title="Payment receipt" style={{ marginTop: 16 }}>
@@ -366,6 +369,7 @@ export default function PaymentCheckout() {
             </View>
             <Text style={{ color: colors.text, fontSize: 27, lineHeight: 33, fontWeight: '900', textAlign: 'center' }}>Payment Successful</Text>
             <Text style={[styles.body, { textAlign: 'center' }]}>Contact migration is now unlocked on this device.</Text>
+            <Text style={[styles.small, { textAlign: 'center', color: colors.primary, fontWeight: '800' }]}>Thank you for backing a young Gambian team — your support goes toward our next project.</Text>
             <View style={{ width: '100%', gap: 2, marginTop: 4 }}>
               <InfoRow label="Platform" value={meta.title} />
               <InfoRow label="Amount" value={`D${amount}`} />

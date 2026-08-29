@@ -212,6 +212,7 @@ function BuySeats() {
           <Pill text="PAYMENT CONFIRMED" tone="success" />
           <Text selectable style={{ color: colors.primary, fontSize: 26, fontWeight: '900', letterSpacing: 2, textAlign: 'center' }}>{issuedCode}</Text>
           <Text style={[styles.body, { textAlign: 'center' }]}>Share this code with up to {effectiveSeats} devices. Each person opens GNM → Settings → Organisation access → enters this code.</Text>
+          <Text style={[styles.small, { textAlign: 'center', color: colors.primary, fontWeight: '800' }]}>Thank you for supporting a young Gambian team — your organisation is helping fund our next project.</Text>
           <Button title="Share code" variant="secondary" tone="blue" icon="document" onPress={() => Share.share({ message: `Your GNM organisation access code: ${issuedCode}\nOpen GNM → Settings → Organisation access → enter this code.` })} style={{ width: '100%' }} />
           <Button title="Back to Dashboard" icon="home" onPress={() => router.replace('/dashboard')} style={{ width: '100%' }} />
         </Card>
@@ -287,6 +288,7 @@ function BuySeats() {
             </View>
             <Button title={busy ? 'Starting…' : price ? `Pay D${price} for ${effectiveSeats} devices` : 'Choose a size'} icon="right" loading={busy} disabled={busy || !price} onPress={startPurchase} />
             <Text style={styles.small}>You are the buyer. Access is granted by sharing the code, not to this device automatically.</Text>
+            <Text style={[styles.small, { color: colors.primary, fontWeight: '800' }]}>OceanBrown is a young Gambian team. Your organisation's support helps fund the next tool we build for The Gambia.</Text>
           </>
         )}
       </Card>

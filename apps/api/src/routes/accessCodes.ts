@@ -33,6 +33,8 @@ export function normalizeAccessCode(raw: string): string | null {
   return `GNM-${body.slice(0, 4)}-${body.slice(4, 8)}`;
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 function publicCode(row: any) {
   return {
     id: row.id,
@@ -171,6 +173,7 @@ accessCodesRouter.get('/admin/access-codes', requireAdmin, async (_req, res, nex
 
 accessCodesRouter.get('/admin/access-codes/:id/redemptions', requireAdmin, async (req, res, next) => {
   try {
+    if (!UUID_RE.test(String(req.params.id))) return res.status(404).json({ message: 'Code not found.' });
     const rows = (await query(
       `SELECT acr.device_id, acr.redeemed_at, d.status AS device_status, d.access_source AS device_access_source
        FROM access_code_redemptions acr
@@ -185,6 +188,7 @@ accessCodesRouter.get('/admin/access-codes/:id/redemptions', requireAdmin, async
 
 accessCodesRouter.post('/admin/access-codes/:id/revoke', requireAdmin, async (req, res, next) => {
   try {
+    if (!UUID_RE.test(String(req.params.id))) return res.status(404).json({ message: 'Code not found.' });
     const r = await query(
       "UPDATE access_codes SET status='revoked', updated_at=NOW() WHERE id=$1 AND status<>'revoked' RETURNING *",
       [req.params.id]

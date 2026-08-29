@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Copy, KeyRound, Search, Ticket, Users, XCircle } from 'lucide-react';
-import { api } from '../api/client';
+import { api, getAdmin } from '../api/client';
 
 type AccessCode = {
   id: string;
@@ -22,6 +22,7 @@ type Redemption = { device_id: string; redeemed_at: string; device_status: strin
 const SEAT_PRESETS = [5, 10, 15];
 
 export default function AccessCodes() {
+  const canEditPricing = ['owner', 'admin'].includes(getAdmin()?.role || '');
   const [items, setItems] = useState<AccessCode[]>([]);
   const [msg, setMsg] = useState('');
   const [query, setQuery] = useState('');
@@ -49,8 +50,8 @@ export default function AccessCodes() {
 
   useEffect(() => {
     load().catch((e) => setMsg(e.message));
-    loadPricing().catch(() => undefined);
-  }, []);
+    if (canEditPricing) loadPricing().catch(() => undefined);
+  }, [canEditPricing]);
 
   async function savePricing() {
     setMsg('');
@@ -145,6 +146,7 @@ export default function AccessCodes() {
         <div className="summaryCard"><KeyRound size={22} /><span><small>Seats redeemed</small><b>{totals.redeemed}</b></span></div>
       </div>
 
+      {canEditPricing && (
       <section className="card">
         <h2>Seat pricing</h2>
         <p>Totals for purchased codes come from here — the client only picks a seat count. <code>tiers</code> maps a seat count to a fixed GMD price; any other size is priced at <code>custom_unit × seats</code> (min <code>custom_min_seats</code>, max <code>custom_max_seats</code>).</p>
@@ -160,6 +162,7 @@ export default function AccessCodes() {
           <button type="button" className="btn secondary" disabled={savingPricing} onClick={savePricing}>{savingPricing ? 'Saving…' : 'Save pricing'}</button>
         </div>
       </section>
+      )}
 
       <section className="card">
         <h2>Generate codes</h2>

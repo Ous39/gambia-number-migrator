@@ -93,9 +93,11 @@ function app() {
   return a;
 }
 
+const CODE_ID = '11111111-1111-4111-8111-111111111111';
+
 beforeEach(() => {
   codes = [{
-    id: 'code-1', code: 'GNM-ABCD-2345', seats: 2, redeemed_count: 0,
+    id: CODE_ID, code: 'GNM-ABCD-2345', seats: 2, redeemed_count: 0,
     source: 'admin', status: 'active', label: null, payment_id: null, expires_at: null, created_at: new Date().toISOString(),
   }];
   redemptions = [];
@@ -173,14 +175,19 @@ describe('access codes — redeem', () => {
 
 describe('access codes — revoke', () => {
   it('revokes an active code', async () => {
-    const res = await request(app()).post('/api/admin/access-codes/code-1/revoke').send({});
+    const res = await request(app()).post(`/api/admin/access-codes/${CODE_ID}/revoke`).send({});
     expect(res.status).toBe(200);
     expect(codes[0].status).toBe('revoked');
   });
 
   it('404s a already-revoked code', async () => {
     codes[0].status = 'revoked';
-    const res = await request(app()).post('/api/admin/access-codes/code-1/revoke').send({});
+    const res = await request(app()).post(`/api/admin/access-codes/${CODE_ID}/revoke`).send({});
+    expect(res.status).toBe(404);
+  });
+
+  it('404s a non-uuid id without hitting the database', async () => {
+    const res = await request(app()).post('/api/admin/access-codes/not-a-uuid/revoke').send({});
     expect(res.status).toBe(404);
   });
 });

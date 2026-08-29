@@ -4,8 +4,8 @@ import { router, useFocusEffect } from 'expo-router';
 import { Button } from '../src/components/Button';
 import { BackHeader, Card, NoticeCard, Pill, Screen, Section, useAppDialog } from '../src/components/UI';
 import { AppIcon } from '../src/components/AppIcon';
-import { createPaymentIntent, getLiveConfig, getPaymentStatus, redeemAccessCode } from '../src/services/api';
-import { getDeviceFingerprint } from '../src/services/deviceService';
+import { createPaymentIntent, getLiveConfig, getPaymentStatus, redeemAccessCode, registerDevice } from '../src/services/api';
+import { getDeviceFingerprint, getDeviceInfo } from '../src/services/deviceService';
 import { getAccessStatus, markFeatureUnlocked, PREMIUM_FEATURES } from '../src/services/unlockService';
 import { useAppTheme } from '../src/appTheme';
 
@@ -47,6 +47,7 @@ export default function Organisation() {
     setRedeeming(true);
     try {
       const fp = await getDeviceFingerprint();
+      await registerDevice(fp, getDeviceInfo()); // make sure the device exists + has a secret
       const result = await redeemAccessCode(fp, trimmed);
       await markFeatureUnlocked(PREMIUM_FEATURES.bulkUnlock, 'org-code');
       await getAccessStatus().catch(() => undefined);
@@ -121,6 +122,7 @@ function BuySeats() {
   const [reference, setReference] = useState('');
   const [issuedCode, setIssuedCode] = useState('');
   const [polling, setPolling] = useState(false);
+  const [timedOut, setTimedOut] = useState(false);
   const attemptId = useRef('');
 
   useFocusEffect(useCallback(() => {
@@ -156,10 +158,12 @@ function BuySeats() {
     if (!polling || !reference) return;
     let n = 0;
     let cancelled = false;
+    setTimedOut(false);
     void checkStatus();
     const timer = setInterval(() => {
       n += 1;
-      if (cancelled || n > 40) { clearInterval(timer); return; }
+      if (cancelled) { clearInterval(timer); return; }
+      if (n > 40) { clearInterval(timer); setTimedOut(true); return; }
       void checkStatus();
     }, 3000);
     return () => { cancelled = true; clearInterval(timer); };
@@ -177,6 +181,7 @@ function BuySeats() {
     setBusy(true);
     try {
       const fp = await getDeviceFingerprint();
+      await registerDevice(fp, getDeviceInfo());
       if (!attemptId.current) attemptId.current = `org_${Date.now()}_${Math.random().toString(36).slice(2, 12)}`;
       const intent = await createPaymentIntent({
         provider,
@@ -224,6 +229,9 @@ function BuySeats() {
           </View>
           <Text style={{ color: colors.text, fontSize: 20, fontWeight: '900', textAlign: 'center' }}>Approve the payment</Text>
           <Text style={[styles.body, { textAlign: 'center' }]}>Complete the D{price} payment in the page that opened. Your code appears here automatically once it is confirmed.</Text>
+          {timedOut ? (
+            <Text style={[styles.small, { textAlign: 'center', color: colors.warning }]}>Still not confirmed. If you have paid, tap “check now” again in a minute, or reopen this screen later — your code is kept against your payment reference.</Text>
+          ) : null}
           <Button title="I have paid — check now" icon="refresh" onPress={checkStatus} style={{ width: '100%' }} />
           <Button title="Back to Dashboard" variant="secondary" icon="home" onPress={() => router.replace('/dashboard')} style={{ width: '100%' }} />
         </Card>
@@ -277,7 +285,7 @@ function BuySeats() {
               <Text style={{ color: colors.muted, fontWeight: '800' }}>Total</Text>
               <Text style={{ color: colors.text, fontWeight: '900', fontSize: 20 }}>{price ? `D${price}` : '—'}</Text>
             </View>
-            <Button title={busy ? 'Starting…' : `Pay D${price ?? ''} for ${effectiveSeats || '—'} devices`} icon="right" loading={busy} disabled={busy || !price} onPress={startPurchase} />
+            <Button title={busy ? 'Starting…' : price ? `Pay D${price} for ${effectiveSeats} devices` : 'Choose a size'} icon="right" loading={busy} disabled={busy || !price} onPress={startPurchase} />
             <Text style={styles.small}>You are the buyer. Access is granted by sharing the code, not to this device automatically.</Text>
           </>
         )}

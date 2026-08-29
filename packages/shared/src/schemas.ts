@@ -44,6 +44,9 @@ export const transitionSettingsSchema = z.object({
   if (!value.allowReplaceMode && value.defaultUpdateMode === 'replace') ctx.addIssue({ code: 'custom', message: 'Default mode cannot be replace while replace mode is disabled', path: ['defaultUpdateMode'] });
 });
 
+// GNM never handles a payment PIN or OTP. Checkout is a signed provider session
+// opened in the system browser; access is granted only from a verified webhook
+// (or a provider-side reconciliation), never from the client.
 export const paymentIntentSchema = z.object({
   provider: z.enum(['wave', 'aps']),
   deviceId: z.string().min(8).max(200),
@@ -53,10 +56,4 @@ export const paymentIntentSchema = z.object({
   customerPhone: z.string().regex(/^(\d{7}|\d{9})$/).optional(),
   idempotencyKey: z.string().regex(/^[A-Za-z0-9:_-]{16,100}$/),
   metadata: z.record(z.unknown()).optional().default({})
-});
-
-export const paymentOtpSchema = z.object({
-  reference: z.string().min(8).max(100),
-  otp: z.string().regex(/^\d{4}$/),
-  deviceId: z.string().min(8).max(200)
 });
